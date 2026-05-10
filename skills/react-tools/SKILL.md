@@ -561,6 +561,108 @@ function LazyImageGallery() {
 }
 ```
 
+## Integration with TanStack Query
+
+Cache AI results to avoid regenerating summaries for the same input.
+
+```tsx
+import { useQueryClient } from '@tanstack/react-query';
+import { useAISummarize } from '@galiprandi/react-tools';
+
+function CachedSummarizer() {
+  const queryClient = useQueryClient();
+  const { data, status, summarize, reset } = useAISummarize({
+    type: 'key-points',
+    streaming: true
+  });
+
+  const handleSummarize = async (text: string) => {
+    const queryKey = ['ai-summary', text];
+    
+    // Check cache first
+    const cachedData = queryClient.getQueryData<string>(queryKey);
+    if (cachedData) return;
+
+    // Fetch with cache
+    await queryClient.fetchQuery({
+      queryKey,
+      queryFn: async () => {
+        await summarize(text);
+        return data;
+      },
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes
+    });
+  };
+
+  const handleRegenerate = async (text: string) => {
+    // Invalidate cache to force regeneration
+    queryClient.removeQueries({ queryKey: ['ai-summary', text] });
+    reset();
+    await handleSummarize(text);
+  };
+}
+```
+
+**Key Patterns:**
+- Use `queryClient.getQueryData()` to check cache before calling AI
+- Use `queryClient.fetchQuery()` to execute and cache results
+- Use `queryClient.removeQueries()` to invalidate cache for regeneration
+- Build queryKeys from input parameters for unique cache entries
+- Set `staleTime` to control how long data is considered fresh
+- Set `gcTime` to control how long unused cache is kept
+
+### Advanced Pattern: Truncation + Custom Query Keys
+
+```tsx
+function truncateText(text: string, maxLines?: number, maxChars?: number): string {
+  let truncated = text;
+  if (maxLines) {
+    const lines = truncated.split('\n');
+    if (lines.length > maxLines) truncated = lines.slice(-maxLines).join('\n');
+  }
+  if (maxChars && truncated.length > maxChars) truncated = truncated.slice(-maxChars);
+  return truncated;
+}
+
+const handleSummarize = async (text: string, options: {
+  maxLines?: number;
+  maxChars?: number;
+  context?: string;
+  customQueryKey?: unknown[];
+}) => {
+  const { maxLines = 200, maxChars = 10000, context, customQueryKey } = options;
+  const truncatedText = truncateText(text, maxLines, maxChars);
+  const textWithContext = context ? `INSTRUCCIÓN: ${context}\n\n${truncatedText}` : truncatedText;
+  const queryKey = customQueryKey || ['ai-summary', text, JSON.stringify(options)];
+
+  const cachedData = queryClient.getQueryData<string>(queryKey);
+  if (cachedData) return cachedData;
+
+  return queryClient.fetchQuery({
+    queryKey,
+    queryFn: async () => {
+      await summarize(textWithContext, context);
+      return new Promise<string>((resolve) => {
+        const checkData = () => {
+          if (data) resolve(data);
+          else setTimeout(checkData, 50);
+        };
+        checkData();
+      });
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+};
+```
+
+**Advanced Features:**
+- Truncate text before AI processing to reduce token usage
+- Custom query keys for granular cache control
+- Polling pattern to wait for streaming results
+- Context injection for domain-specific prompts
+
 ## Best Practices
 
 ### AI Hooks
