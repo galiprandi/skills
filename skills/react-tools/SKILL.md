@@ -1,6 +1,6 @@
 ---
 name: react-tools
-description: Guide for using @galiprandi/react-tools library. Use when working with React projects that need lightweight, dependency-free utilities including components (AsyncBlock, Form, Input, DateTime, Dialog, Observer, LazyRender) and hooks (useAI, useAISummarize, useLanguageDetection, useTranslator, useAIPrompt, useAIWrite, useDebounce, useTimer, useList). This library provides accessible, composable React utilities with no configuration needed.
+description: Guide for using @galiprandi/react-tools library. Use when working with React projects that need lightweight, dependency-free utilities including components (AsyncBlock, Form, Input, DateTime, Dialog, Observer, LazyRender) and hooks (useAI, useAISummarize, useLanguageDetection, useTranslator, useAIPrompt, useAIWrite, useAIRewriter, useDebounce, useTimer, useList). This library provides accessible, composable React utilities with no configuration needed.
 ---
 
 # React Tools
@@ -509,6 +509,69 @@ function MyComponent() {
 - **Document Drafting**: Draft reports, proposals, or documentation
 - **Marketing Copy**: Create marketing materials with consistent tone
 - **Content Templates**: Generate content templates with shared context for consistency
+
+### useAIRewriter
+
+Hook for using the browser's Rewriter API to rewrite and restructure text with customizable tone, format, and length. Provides a React interface to Chrome's native Rewriter API with model initialization, download progress, streaming support, shared context management, and automatic cleanup.
+
+```tsx
+import { useAIRewriter } from '@galiprandi/react-tools';
+
+function MyComponent() {
+  const { data, rewrite, status, progress } = useAIRewriter({
+    tone: 'more-formal',
+    format: 'markdown',
+    length: 'shorter',
+    sharedContext: 'This is for a professional business email',
+    streaming: true
+  });
+
+  const handleRewrite = async () => {
+    await rewrite('Hi, I wanted to let you know the project is going well.', 'Make it more professional');
+  };
+
+  return (
+    <div>
+      <button onClick={handleRewrite} disabled={status === 'rewriting'}>
+        Rewrite
+      </button>
+      {status === 'rewriting' && <p>Rewriting...</p>}
+      {status === 'downloading' && <p>Downloading model...</p>}
+      {data && <p>{data}</p>}
+    </div>
+  );
+}
+```
+
+**Options:**
+- `tone`: Writing tone ('more-formal' | 'as-is' | 'more-casual', default: 'as-is')
+- `format`: Output format ('as-is' | 'markdown' | 'plain-text', default: 'as-is')
+- `length`: Length of the output ('shorter' | 'as-is' | 'longer', default: 'as-is')
+- `sharedContext`: Shared context for all rewriting tasks (helps maintain consistency across multiple rewrites)
+- `outputLanguage`: Output language (BCP 47 format, e.g., 'en', 'es', 'fr')
+- `expectedInputLanguages`: Expected input languages (BCP 47 format)
+- `expectedContextLanguages`: Expected context languages (BCP 47 format)
+- `streaming`: Enable streaming output (default: false)
+- `warmup`: Preload model on mount (default: true)
+
+**Returns:**
+- `data`: The rewritten text
+- `status`: Current status of the rewriting process
+- `progress`: Download progress if model is being downloaded
+- `error`: Error object if rewriting failed
+- `rewrite`: Function to rewrite text with optional context and tone override
+- `reset`: Function to reset the hook state
+
+**Note:** Requires Chrome's Rewriter API, which is currently experimental.
+
+**Recommended Use Cases:**
+- **Email Tone Adjustment**: Make emails more professional or casual
+- **Content Condensation**: Summarize or condense long text
+- **Content Expansion**: Add detail and elaboration to brief content
+- **Style Improvement**: Enhance readability and flow of text
+- **Audience Adaptation**: Rewrite content for different audiences
+- **Review Polishing**: Improve feedback constructiveness
+- **Format Conversion**: Convert content to markdown or plain-text
 
 ### useLanguageDetection
 
