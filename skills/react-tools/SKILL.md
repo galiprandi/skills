@@ -341,6 +341,113 @@ function MyComponent() {
 - **Content Preview**: Show summaries of content before users click to read full text
 - **Email Digests**: Summarize email threads for quick understanding
 
+### useAIPrompt
+
+Hook for using the browser's Prompt API with multimodal support. Provides a React interface to Chrome's native Prompt API with model initialization, download progress, streaming support, automatic cleanup, and automatic type inference for text, images, and audio.
+
+```tsx
+import { useAIPrompt } from '@galiprandi/react-tools';
+
+function MyComponent() {
+  const { data, prompt, append, status } = useAIPrompt({
+    initialPrompts: [
+      { role: 'system', content: 'You are a helpful assistant.' }
+    ],
+    expectedInputs: [{ type: 'text' }, { type: 'image' }],
+    expectedOutputs: [{ type: 'text' }]
+  });
+
+  const handleSendWithImage = async (imageBlob: Blob) => {
+    await prompt([
+      { role: 'user', content: ['Describe this image:', imageBlob] }
+    ]);
+  };
+
+  const handleAppendImage = async (imageBlob: Blob) => {
+    await append([
+      { role: 'user', content: ['Reference image:', imageBlob] }
+    ]);
+  };
+
+  return (
+    <div>
+      <button onClick={() => prompt('What is the capital of France?')} disabled={status === 'prompting'}>
+        Send
+      </button>
+      {status === 'prompting' && <p>Thinking...</p>}
+      <p>{data}</p>
+    </div>
+  );
+}
+```
+
+**Multimodal Support:**
+
+The hook supports automatic type inference for:
+- **Text**: strings
+- **Audio**: AudioBuffer, ArrayBuffer, ArrayBufferView, Blob (audio/*)
+- **Images**: HTMLImageElement, SVGImageElement, HTMLVideoElement, HTMLCanvasElement, ImageBitmap, OffscreenCanvas, VideoFrame, Blob (image/*), ImageData
+
+**Options:**
+- `initialPrompts`: Initial system/context prompts
+- `temperature`: Sampling temperature (0.0-1.0)
+- `topK`: Top-K sampling parameter
+- `streaming`: Enable streaming output (default: false)
+- `warmup`: Preload model on mount (default: true)
+- `expectedInputs`: Expected input types for multimodal support (e.g., `[{ type: 'text' }, { type: 'image' }]`)
+- `expectedOutputs`: Expected output types (e.g., `[{ type: 'text' }]`)
+
+**Returns:**
+- `data`: The generated response text
+- `status`: Current status of the prompt process
+- `progress`: Download progress if model is being downloaded
+- `error`: Error object if prompting failed
+- `prompt`: Function to send a prompt to the AI (supports text or multimodal content)
+- `append`: Function to append contextual messages without generating response (useful for preloading images/audio)
+- `reset`: Function to reset the hook state
+- `contextUsage`: Number of tokens used in current session
+- `contextWindow`: Maximum number of tokens allowed
+
+**Multimodal Examples:**
+
+```tsx
+// Image analysis
+const imageBlob = await fetch('photo.jpg').then(r => r.blob());
+await prompt([
+  { role: 'user', content: ['What do you see in this image?', imageBlob] }
+]);
+
+// Canvas drawing analysis
+await prompt([
+  { role: 'user', content: ['Analyze this drawing:', canvasElement] }
+]);
+
+// Audio transcription
+const audioBuffer = await captureAudio();
+await prompt([
+  { role: 'user', content: ['Transcribe this audio:', audioBuffer] }
+]);
+
+// Preload images with append, then ask question
+await append([{ role: 'user', content: ['Image 1:', image1] }]);
+await append([{ role: 'user', content: ['Image 2:', image2] }]);
+await prompt('Compare these two images');
+```
+
+**Important Limitations:**
+- **Single content type per prompt**: The Chrome AI model currently has limitations processing multiple content types (e.g., image + audio) simultaneously in a single prompt. Send one type of multimodal content at a time for best results.
+- **Model capability**: Multimodal support depends on the specific Chrome AI model version and capabilities available in the browser.
+
+**Note:** Requires Chrome's Prompt API, which is currently experimental.
+
+**Recommended Use Cases:**
+- **AI Chat Interfaces**: Build chat interfaces with streaming responses and context management
+- **Image Analysis**: Analyze uploaded images, canvas drawings, or video frames
+- **Audio Processing**: Transcribe audio or process voice inputs
+- **Content Generation**: Generate text content with configurable creativity and sampling
+- **Question Answering**: Answer questions with context-aware responses
+- **Multimodal AI**: Combine text, images, and audio in a single prompt
+
 ### useLanguageDetection
 
 Hook for using the browser's Language Detection API. Provides a React interface to Chrome's native Language Detection API with model initialization, download progress, and automatic cleanup. Returns the most likely detected language, confidence score, all results, and user language comparison.

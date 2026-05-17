@@ -17,7 +17,7 @@ AI Skills are specialized knowledge modules that teach your AI assistant how to 
 **What it helps with:**
 - Async data handling with automatic cancellation
 - Form management with built-in validation
-- Browser-native AI features (Chrome AI API)
+- Browser-native AI features (Chrome AI API with multimodal support)
 - Accessible dialogs and modals
 - Performance optimization (lazy loading, viewport tracking)
 - Common React patterns (debounce, timers, list management)
