@@ -1,23 +1,11 @@
 ---
 name: react-tools
-description: Guide for using @galiprandi/react-tools library. Use when working with React projects that need lightweight, dependency-free utilities including components (AsyncBlock, Form, Input, DateTime, Dialog, Observer, LazyRender), hooks (useAI, useAISummarize, useLanguageDetection, useTranslator, useDebounce, useTimer, useList), and utilities (dates, strings, userLanguage). This library provides accessible, composable React utilities with no configuration needed.
+description: Guide for using @galiprandi/react-tools library. Use when working with React projects that need lightweight, dependency-free utilities including components (AsyncBlock, Form, Input, DateTime, Dialog, Observer, LazyRender) and hooks (useAI, useAISummarize, useLanguageDetection, useTranslator, useDebounce, useTimer, useList). This library provides accessible, composable React utilities with no configuration needed.
 ---
 
 # React Tools
 
-**@galiprandi/react-tools** is a lightweight, dependency-free utility library for React that provides reusable components and hooks to simplify development and improve accessibility.
-
-## When to Use
-
-Use this library when you need:
-- **Async data handling** with loading/error states → `AsyncBlock`
-- **Form management** with automatic value collection → `Form`, `Input`
-- **Date/time inputs** with ISO string handling → `DateTime`
-- **Accessible dialogs/modals** → `Dialog`
-- **Viewport visibility tracking** → `Observer`, `LazyRender`
-- **Browser-native AI features** (Chrome AI API) → `useAI`, `useAISummarize`, `useLanguageDetection`, `useTranslator`
-- **Common React patterns** → `useDebounce`, `useTimer`, `useList`
-- **Utility functions** → dates, strings, userLanguage detection
+**@galiprandi/react-tools** is a lightweight, dependency-free utility library for React that provides reusable components and hooks to simplify development and improve accessibility — no configuration needed.
 
 ## Installation
 
@@ -29,73 +17,71 @@ yarn add @galiprandi/react-tools
 pnpm add @galiprandi/react-tools
 ```
 
-## Quick Start
-
-```tsx
-import { AsyncBlock, Form, Input, useDebounce } from '@galiprandi/react-tools';
-
-// Async data with automatic cancellation
-<AsyncBlock
-  promiseFn={() => fetch('/api/data').then(res => res.json())}
-  pending={<p>Loading...</p>}
-  success={(data) => <p>{data.name}</p>}
-  error={(err) => <p>Error: {(err as Error).message}</p>}
-/>
-
-// Form with automatic value collection
-<Form<{ email: string }> onSubmitValues={console.log}>
-  <Input name="email" label="Email" transform="onlyEmail" />
-  <button type="submit">Submit</button>
-</Form>
-
-// Debounced value
-const debouncedSearch = useDebounce(searchTerm, 500);
-```
-
 ## Components
 
 ### AsyncBlock
 
-Declarative component for rendering async data with loading, success, and error states. Automatically cancels in-flight requests when dependencies change.
+Declarative component to render async data with loading, success, and error states. Automatically cancels in-flight requests when dependencies change.
 
 ```tsx
 <AsyncBlock
-  promiseFn={() => fetch(`/api/user/${userId}`).then(res => res.json())}
-  deps={[userId]}
+  promiseFn={() => fetch(`/api/user`).then(res => res.json())}
+  pending={<p>Loading...</p>}
+  success={(data, reload) => (
+    <div>
+      <p>Welcome {data.name}</p>
+      <button onClick={reload}>Refresh</button>
+    </div>
+  )}
+  error={(err, reload) => (
+    <div>
+      <p>Error: {(err as Error).message}</p>
+      <button onClick={reload}>Retry</button>
+    </div>
+  )}
   timeOut={5000}
-  pending={<p>Loading user...</p>}
-  success={(user) => <p>Welcome, {user.name}!</p>}
-  error={(err) => <p>Error: {(err as Error).message}</p>}
-  onSuccess={(user) => console.log('User loaded:', user)}
-  onError={(err) => console.error('Failed to load:', err)}
+  deps={[userId]}
 />
 ```
 
-**Key Props:**
+**Props:**
 - `promiseFn`: Async function returning a Promise
-- `deps`: Dependency array for re-execution
-- `timeOut`: Optional timeout in milliseconds
-- `pending/success/error`: UI for each state
-- `onSuccess/onError`: Callbacks
+- `pending`: UI while loading
+- `success`: UI on success (receives data and reload function)
+- `error`: UI on error (receives error and reload function)
+- `timeOut`: Optional timeout in ms
+- `deps`: Dependency list for re-execution
+- `onSuccess`: Optional success callback
+- `onError`: Optional error callback
+
+**Recommended Use Cases:**
+- **API Data Fetching**: Load user profiles, product details, or any REST API data with automatic cancellation when the component unmounts or dependencies change
+- **Search Results**: Display search results with loading states and error handling, automatically refetching when search terms change
+- **Dashboard Metrics**: Fetch and display real-time metrics with periodic refresh via the `deps` array
+- **Form Submission**: Handle async form submissions with loading states during POST/PUT requests
+- **Lazy Loading**: Load data only when needed (e.g., when a tab becomes active) by controlling execution through the `deps` array
 
 ### Form
 
 Enhanced `<form>` element that automatically gathers and returns values on submit.
 
 ```tsx
-<Form<{ username: string; email: string }>
-  onSubmitValues={(values) => console.log(values)}
-  filterEmptyValues
->
-  <Input name="username" label="Username" transform="titleCase" />
-  <Input name="email" label="Email" transform="onlyEmail" />
+<Form<{ username: string }> onSubmitValues={console.log} filterEmptyValues>
+  <Input name="username" label="Username" />
   <button type="submit">Submit</button>
 </Form>
 ```
 
-**Key Props:**
+**Props:**
 - `onSubmitValues`: Handles form submission with collected values
-- `filterEmptyValues`: Remove empty fields before submission
+- `filterEmptyValues`: Remove empty fields before submission (default: false)
+
+**Recommended Use Cases:**
+- **User Registration/Login**: Collect and validate user credentials with automatic value gathering and optional empty field filtering
+- **Contact Forms**: Handle contact form submissions with built-in transformations (e.g., titleCase for names, onlyEmail for emails)
+- **Settings Pages**: Manage user preferences and configuration settings with type-safe value collection
+- **Search Filters**: Create filter forms that automatically collect and transform filter values before API calls
+- **Data Entry Forms**: Streamline data entry workflows with automatic value collection and optional filtering of empty fields
 
 ### Input
 
@@ -109,14 +95,25 @@ Custom input component supporting transformations, debounce, datalist, and more.
   transform="onlyEmail"
   onChangeValue={(val) => console.log(val)}
   debounceDelay={500}
-  datalist={['user@example.com', 'admin@example.com']}
 />
 ```
 
-**Transform Options:**
-- `titleCase`, `toUpperCase`, `toLowerCase`
-- `capitalize`, `snakeCase`
-- `onlyNumbers`, `onlyLetters`, `onlyEmail`, `onlyAlphanumeric`
+**Props:**
+- `label`: Optional label
+- `transform`: Built-in value transforms (camelCase, pascalCase, kebabCase, titleCase, onlyEmail, etc.)
+- `transformFn`: Custom value transform function
+- `onChangeValue`: Fires on value change
+- `onChangeDebounce`: Fires after debounce
+- `debounceDelay`: Delay in milliseconds
+- `datalist`: List of autocomplete suggestions
+
+**Recommended Use Cases:**
+- **Email Validation**: Use `transform="onlyEmail"` to ensure proper email format with automatic validation
+- **Name Formatting**: Apply `transform="titleCase"` to automatically capitalize names and titles
+- **Search Inputs**: Leverage `debounceDelay` and `onChangeDebounce` for search/filter inputs to reduce API calls
+- **Autocomplete Fields**: Use `datalist` prop to provide suggestions for city names, product names, or any predefined options
+- **URL/Slug Fields**: Apply `transform="kebabCase"` or `transform="snakeCase"` for URL-friendly slugs
+- **Numeric Inputs**: Use `transform="onlyNumbers"` to restrict input to numeric values only
 
 ### DateTime
 
@@ -125,14 +122,26 @@ Wrapper around `<input type="datetime-local" />` that handles ISO string convers
 ```tsx
 <DateTime
   label="Appointment"
-  isoValue={appointmentDate}
-  onChangeISOValue={setAppointmentDate}
+  isoValue={value}
+  onChangeISOValue={setValue}
 />
 ```
 
+**Props:**
+- `isoValue`: ISO 8601 datetime value
+- `onChangeISOValue`: Callback with ISO string
+- Inherits all `<Input />` props
+
+**Recommended Use Cases:**
+- **Appointment Scheduling**: Schedule meetings, appointments, or events with ISO string storage for consistent timezone handling
+- **Event Creation**: Create events with datetime inputs that automatically convert to ISO format for database storage
+- **Deadline Management**: Set deadlines or due dates with proper ISO string conversion for backend APIs
+- **Booking Systems**: Handle booking dates and times for reservations, flights, or services
+- **Time Tracking**: Record start/end times for tasks or activities with ISO format consistency
+
 ### Dialog
 
-Accessible dialog/modal component built on the native `<dialog>` element.
+Accessible dialog/modal component built on top of the native `<dialog>` element.
 
 ```tsx
 <Dialog
@@ -140,60 +149,97 @@ Accessible dialog/modal component built on the native `<dialog>` element.
   opener={<button>Open Modal</button>}
   onClose={() => console.log('Closed')}
 >
-  <p>This is an accessible dialog!</p>
-  <button onClick={() => dialogRef.current?.close()}>Close</button>
+  <p>This is a dialog!</p>
 </Dialog>
 ```
 
+**Props:**
+- `isOpen`: Controlled open state (optional)
+- `behavior`: Dialog type ('dialog' | 'modal', default: 'modal')
+- `onOpen`: Triggered on open
+- `onClose`: Triggered on close
+- `opener`: Element to trigger opening
+- `children`: Content inside the dialog
+- Inherits all native `<dialog>` props
+
+**Recommended Use Cases:**
+- **Confirmation Dialogs**: Show confirmation prompts before destructive actions (delete, cancel, etc.) with accessible keyboard support
+- **Modal Forms**: Display forms in modals for creating/editing items without leaving the current context
+- **Alert/Notification Modals**: Show important alerts, warnings, or information messages with proper ARIA roles
+- **Detail Views**: Display detailed information about an item in a modal overlay while maintaining page context
+- **Settings Panels**: Open settings or configuration panels as accessible dialogs with focus management
+
 ### Observer
 
-Tracks whether a child element is visible in the viewport using `IntersectionObserver`.
+Tracks whether a child element is visible in the viewport using `IntersectionObserver`. Triggers callbacks when the element appears or disappears.
 
 ```tsx
 <Observer
-  onChange={(isVisible) => console.log('Visible:', isVisible)}
+  wrapper="section"
+  onAppear={() => console.log('Element appeared')}
+  onDisappear={() => console.log('Element disappeared')}
   threshold={0.5}
 >
   <div>Watch me appear!</div>
 </Observer>
 ```
 
+**Props:**
+- `wrapper`: HTML element to wrap children with (default: 'div')
+- `onAppear`: Callback when element appears in viewport
+- `onDisappear`: Callback when element disappears from viewport
+- `threshold`: Intersection threshold (0-1)
+- `root`: The element used as the viewport
+- `rootMargin`: Margin around the root
+- Extends `IntersectionObserverInit` options
+
+**Recommended Use Cases:**
+- **Scroll Animations**: Trigger animations when elements enter the viewport (fade-in, slide-up effects)
+- **Infinite Scroll**: Detect when user reaches bottom of list to load more items
+- **Analytics Tracking**: Track when content becomes visible to users for analytics purposes
+- **Lazy Loading Images**: Load images only when they come into view (though LazyRender is better for this)
+- **Progress Indicators**: Show progress indicators when sections become visible during scrolling
+- **Active Navigation**: Highlight navigation items based on which section is currently visible
+
 ### LazyRender
 
-Only renders children when they become visible in the viewport.
+Only renders children when they become visible in the viewport. Automatically unmounts children when they disappear to optimize performance.
 
 ```tsx
 <LazyRender
-  placeholder={<span>Loading image...</span>}
-  threshold={0.1}
+  wrapper="section"
+  placeholder={<span>Loading...</span>}
+  threshold={0.5}
 >
-  <img src="/heavy-image.jpg" alt="Lazy loaded" />
+  <img src="/heavy-image.jpg" alt="Lazy" />
 </LazyRender>
 ```
 
+**Props:**
+- `wrapper`: HTML element to wrap children with (default: 'div')
+- `placeholder`: Rendered before children become visible
+- `threshold`: Intersection threshold (0-1)
+- `root`: The element used as the viewport
+- `rootMargin`: Margin around the root
+- Extends `IntersectionObserverInit` options
+
 ## Hooks
 
-### AI Hooks (Chrome AI API)
+### useAI
 
-**Important**: AI hooks require Chrome's experimental AI APIs. Always check availability with `useAI` first.
-
-#### useAI
-
-Check and manage availability of multiple Chrome AI APIs (Summarizer, Translator, LanguageDetector, and experimental APIs like Prompt, Writer, Rewriter, Proofreader).
+Hook for checking and managing the availability of browser's AI APIs. Provides a centralized way to detect which AI APIs are available, track model download progress, and preload models. Supports current APIs (Summarizer, Translator, LanguageDetector) and experimental APIs (Prompt, Writer, Rewriter, Proofreader).
 
 ```tsx
 import { useAI } from '@galiprandi/react-tools';
 
 function MyComponent() {
   // Check all APIs
-  const { isAvailable, apis, status, preload } = useAI();
+  const { isAvailable, apis, status } = useAI();
 
-  // Check specific APIs only
-  const { isAvailable, apis } = useAI({ 
-    apis: ['translator', 'summarizer'] 
-  });
+  // Check specific APIs
+  const { isAvailable, apis, preload } = useAI({ apis: ['translator', 'summarizer'] });
 
-  // Preload models for faster first use
+  // Preload models
   useEffect(() => {
     if (isAvailable) {
       preload('translator');
@@ -202,42 +248,57 @@ function MyComponent() {
 
   // Show download progress
   if (apis.translator.availability === 'downloading') {
-    const progress = getApiProgress('translator');
+    const progress = apis.translator.progress;
     return <LoadingBar {...progress} />;
   }
-
-  return <div>AI Status: {status}</div>;
 }
 ```
 
+**Options:**
+- `apis`: Specific APIs to check (if not provided, checks all APIs)
+- `onProgress`: Callback when an API's download progress updates
+- `onReady`: Callback when an API becomes ready
+
 **Returns:**
-- `isAvailable`: Whether all requested APIs are available
-- `status`: `'idle' | 'loading' | 'ready' | 'error'`
-- `apis`: Status of each API (unavailable, downloadable, downloading, available)
-- `isApiAvailable(api)`: Check specific API
-- `getApiProgress(api)`: Get download progress
-- `preload(api)`: Preload specific API model
-- `preloadAll()`: Preload all APIs
+- `isAvailable`: Whether any of the requested APIs are available
+- `status`: Current status of the availability check
+- `error`: Error object if the check failed
+- `apis`: Status of each API
+- `isApiAvailable`: Check if a specific API is available
+- `getApiProgress`: Get download progress for a specific API
+- `preload`: Preload a specific API's model
+- `preloadAll`: Preload all APIs' models
 
-#### useAISummarize
+**Supported APIs:** `summarizer`, `translator`, `languageDetector`, `prompt` (Experimental), `writer` (Experimental), `rewriter` (Experimental), `proofreader` (Experimental)
 
-Generate text summaries with streaming support.
+**Note:** Requires Chrome's Native AI APIs, which are currently experimental.
+
+**Recommended Use Cases:**
+- **Feature Detection**: Check if AI features are available before showing AI-powered UI components
+- **Model Preloading**: Preload AI models during app initialization for faster first use
+- **Progress Tracking**: Show download progress when AI models are being downloaded
+- **Conditional Rendering**: Conditionally render AI features based on API availability
+- **Multi-API Apps**: Apps that use multiple AI APIs (summarizer, translator, etc.) need to check availability for each
+
+### useAISummarize
+
+Hook for using the browser's AI Summarizer API. Provides a React interface to Chrome's native AI Summarizer API with model initialization, download progress, streaming support, and automatic cleanup.
 
 ```tsx
 import { useAISummarize } from '@galiprandi/react-tools';
 
-function Summarizer() {
+function MyComponent() {
   const summarize = useAISummarize({
     type: 'tldr',
     format: 'markdown',
     length: 'short',
     outputLanguage: 'en',
-    streaming: true,
-    warmup: true
+    streaming: true
   });
 
   const handleSummarize = async () => {
-    await summarize.summarize(longText, 'End with: Powered by my app');
+    await summarize.summarize(longText, 'End the summary with: Powered by my app');
+    console.log(summarize.data);
   };
 
   return (
@@ -251,27 +312,47 @@ function Summarizer() {
 ```
 
 **Options:**
-- `type`: `'tldr' | 'key-points' | 'teaser' | 'headline'`
-- `format`: `'plain-text' | 'markdown'`
-- `length`: `'short' | 'medium' | 'long'`
-- `outputLanguage`: `'en' | 'es' | 'ja' | 'auto' | 'user'`
-- `streaming`: Enable real-time output
-- `warmup`: Preload model on mount
+- `type`: Type of summary ('tldr' | 'key-points' | 'teaser' | 'headline')
+- `format`: Output format ('plain-text' | 'markdown')
+- `length`: Length of the summary ('short' | 'medium' | 'long')
+- `sharedContext`: Shared context for all summaries
+- `expectedInputLanguages`: Expected input languages (BCP 47 format)
+- `outputLanguage`: Output language ('en' | 'es' | 'ja' | 'auto' | 'user')
+- `expectedContextLanguages`: Expected context languages (BCP 47 format)
+- `preference`: Performance preference ('auto' | 'capability')
+- `streaming`: Enable streaming output (default: false)
+- `warmup`: Preload model on mount (default: false)
 
-#### useLanguageDetection
+**Returns:**
+- `data`: The generated summary text
+- `status`: Current status of the summarization process
+- `progress`: Download progress if model is being downloaded
+- `error`: Error object if summarization failed
+- `supportedPreferences`: Supported preference values based on browser capabilities
+- `summarize`: Function to summarize text with optional context instruction
+- `reset`: Function to reset the hook state
 
-Detect language from text with confidence scores and user language comparison.
+**Note:** Requires Chrome's AI Summarizer API, which is currently experimental.
+
+**Recommended Use Cases:**
+- **Article Summaries**: Generate TL;DR summaries of long articles or blog posts
+- **Document Review**: Summarize long documents or reports for quick overview
+- **Meeting Notes**: Condense meeting transcripts into key points
+- **Content Preview**: Show summaries of content before users click to read full text
+- **Email Digests**: Summarize email threads for quick understanding
+
+### useLanguageDetection
+
+Hook for using the browser's Language Detection API. Provides a React interface to Chrome's native Language Detection API with model initialization, download progress, and automatic cleanup. Returns the most likely detected language, confidence score, all results, and user language comparison.
 
 ```tsx
 import { useLanguageDetection } from '@galiprandi/react-tools';
 
-function LanguageDetector() {
-  const { lang, confidence, allLangs, userLang, isUserLang, status } = 
-    useLanguageDetection({
-      text: 'Hallo und herzlich willkommen!',
-      minConfidence: 0.8,
-      maxResults: 3
-    });
+function MyComponent() {
+  const { lang, confidence, allLangs, userLang, isUserLang, status } = useLanguageDetection({
+    text: 'Hallo und herzlich willkommen!',
+    minConfidence: 0.8
+  });
 
   return (
     <div>
@@ -298,28 +379,44 @@ function LanguageDetector() {
 ```
 
 **Options:**
-- `text`: Text to detect language from (auto-detects when changed)
-- `enable`: Enable/disable auto-detection
-- `minConfidence`: Minimum confidence threshold (0.0 - 1.0)
-- `maxResults`: Maximum number of results
-- `warmup`: Preload model on mount
+- `text`: Text to detect language from (re-detects automatically when changed)
+- `enable`: Enable/disable auto-detection (default: true)
+- `warmup`: Preload the model on component mount (default: false)
+- `minConfidence`: Minimum confidence to include in allLangs (0.0 - 1.0, default: 0)
+- `maxResults`: Maximum number of results to return in allLangs
 
-#### useTranslator
+**Returns:**
+- `lang`: The most likely detected language code
+- `confidence`: Confidence of the most likely detection (0.0 - 1.0)
+- `allLangs`: All detected languages with confidence scores
+- `userLang`: User's browser language code
+- `isUserLang`: Whether detected language matches user's browser language
+- `status`: Current status of the detection process
+- `progress`: Download progress if model is being downloaded
+- `error`: Error object if detection failed
+- `reset`: Function to reset the hook state
 
-Translate text between languages with auto-detection and browser language support. Supports 38+ languages.
+**Note:** Requires Chrome's Language Detection API, which is currently experimental.
+
+**Recommended Use Cases:**
+- **Content Language Detection**: Detect the language of user-generated content (comments, reviews, posts)
+- **Auto-Localization**: Automatically detect content language to apply appropriate formatting or UI
+- **Language-Based Routing**: Route users to language-specific content based on detected text language
+- **Content Moderation**: Detect language for language-specific moderation rules
+- **Analytics**: Track language distribution of user-generated content
+
+### useTranslator
+
+Hook for using the browser's Translator API. Provides a React interface to Chrome's native Translator API with model initialization, download progress, streaming support, and automatic cleanup. Supports 38+ languages. Automatically detects source language and uses browser language by default. **Optimization**: When detected source language matches target language, returns original text without loading translation model.
 
 ```tsx
 import { useTranslator } from '@galiprandi/react-tools';
 
-function Translator() {
-  // Auto-detect source, translate to browser language
-  const { data, detectedSourceLanguage, resolvedTargetLanguage, status } = 
-    useTranslator({
-      text: 'Hello world, how are you?',
-      sourceLanguage: 'auto',
-      targetLanguage: 'user',
-      streaming: true
-    });
+function MyComponent() {
+  // Auto-detect source language and translate to browser language
+  const { data, detectedSourceLanguage, resolvedTargetLanguage, status } = useTranslator({
+    text: 'Hello world, how are you?'
+  });
 
   return (
     <div>
@@ -327,9 +424,7 @@ function Translator() {
       {data && (
         <p>
           {data}
-          <small>
-            (from {detectedSourceLanguage} to {resolvedTargetLanguage})
-          </small>
+          {detectedSourceLanguage && <small> (from {detectedSourceLanguage} to {resolvedTargetLanguage})</small>}
         </p>
       )}
     </div>
@@ -339,359 +434,172 @@ function Translator() {
 
 **Options:**
 - `text`: Text to translate (auto-translates when changed)
-- `sourceLanguage`: `'auto'` or specific language code
-- `targetLanguage`: `'user'` or specific language code
-- `streaming`: Enable real-time output
-- `warmup`: Preload model on mount
-- `enable`: Enable/disable auto-translation
+- `sourceLanguage`: Source language code ('auto' or specific language, default: 'auto')
+- `targetLanguage`: Target language code ('user' or specific language, default: 'user')
+- `streaming`: Enable streaming output (default: false)
+- `warmup`: Preload model on mount (default: false)
+- `enable`: Enable/disable auto-translation (default: true)
 
-**Optimization**: When source and target languages match, returns original text without loading translation model.
+**Returns:**
+- `data`: The translated text
+- `detectedSourceLanguage`: Detected source language (when sourceLanguage is 'auto')
+- `resolvedTargetLanguage`: Resolved target language (when targetLanguage is 'user')
+- `status`: Current status of the translation process
+- `progress`: Download progress if model is being downloaded
+- `error`: Error object if translation failed
+- `translate`: Function to translate text manually
+- `reset`: Function to reset the hook state
 
-### Utility Hooks
+**Supported Languages:** `ar`, `bg`, `bn`, `cs`, `da`, `de`, `el`, `en`, `es`, `fi`, `fr`, `hi`, `hr`, `hu`, `id`, `it`, `iw`, `ja`, `kn`, `ko`, `lt`, `mr`, `nl`, `no`, `pl`, `pt`, `ro`, `ru`, `sk`, `sl`, `sv`, `ta`, `te`, `th`, `tr`, `uk`, `vi`, `zh`, `zh-Hant`
 
-#### useDebounce
+**Note:** Requires Chrome's Translator API, which is currently experimental.
 
-Debounce any value for search, filters, etc.
+**Recommended Use Cases:**
+- **Real-time Translation**: Translate user input in real-time as they type
+- **Content Localization**: Automatically translate content to user's browser language
+- **Multi-language Apps**: Build apps that support multiple languages with automatic translation
+- **Cross-language Communication**: Enable communication between users speaking different languages
+- **Document Translation**: Translate documents or articles on-demand for international users
+
+### useDebounce
+
+A React hook that returns a debounced version of a value. Useful for search input, filters, etc.
 
 ```tsx
 const debouncedSearch = useDebounce(searchTerm, 500);
-
-useEffect(() => {
-  // API call only runs 500ms after searchTerm stops changing
-  if (debouncedSearch) {
-    fetch(`/api/search?q=${debouncedSearch}`);
-  }
-}, [debouncedSearch]);
 ```
 
-#### useTimer
+**Parameters:**
+- `value`: Value to debounce
+- `delay`: Delay in milliseconds
 
-Safe timer management with automatic cleanup.
+**Returns:** Debounced version of the value.
 
-```tsx
-const { setTimeout, setInterval, clearTimer, isActive } = useTimer({
-  onSetTimer: (id) => console.log('Timer set:', id),
-  onTimerComplete: (id) => console.log('Timer completed:', id),
-  onCancelTimer: (id) => console.log('Timer cancelled:', id),
-});
+**Recommended Use Cases:**
+- **Search Inputs**: Debounce search terms to reduce API calls while typing
+- **Filter Inputs**: Delay filter application until user stops typing
+- **Auto-save**: Debounce auto-save functionality to save only after user stops editing
+- **API Rate Limiting**: Reduce API call frequency for expensive operations
+- **Validation**: Delay form validation until user stops typing
 
-// Set a timeout
-setTimeout(() => console.log('Done!'), 5000);
+### useTimer
 
-// Set an interval
-setInterval(() => console.log('Tick'), 1000);
+A React hook that abstracts the complexity of managing `setTimeout` and `setInterval` directly in React components. Provides automatic cleanup, lifecycle events, flexible scheduling, and simplified control to prevent memory leaks.
 
-// Clear any active timer
-clearTimer();
-```
-
-#### useList
-
-Simplify array state management with immutable helpers.
+**Features:**
+- Automatic cleanup when component unmounts
+- Lifecycle events (set, cancel, complete, progress)
+- Flexible scheduling (milliseconds, Date, limited intervals)
+- Simplified control with single clear method
 
 ```tsx
-const { list, addItem, removeByIdx, updateByIdx, findItemBy, count } = 
-  useList([{ id: 1, name: 'Item 1' }]);
+import { useEffect } from 'react';
+import { useTimer } from '@galiprandi/react-tools';
 
-// Add item
-addItem({ id: 2, name: 'Item 2' });
-
-// Remove by index
-removeByIdx(0);
-
-// Update by index
-updateByIdx(0, (item) => ({ ...item, name: 'Updated' }));
-
-// Find item
-const item = findItemBy('id', 1);
-
-// Count items
-const total = count();
-```
-
-## Utilities
-
-### dates
-
-ISO to local datetime conversion (used internally by DateTime).
-
-```tsx
-import { isoToLocal, localToIso } from '@galiprandi/react-tools/utilities/dates';
-
-const localDate = isoToLocal('2024-01-15T10:30:00Z');
-const isoDate = localToIso('2024-01-15T10:30');
-```
-
-### strings
-
-Value transforms for Input component.
-
-```tsx
-import { toTitleCase, onlyEmail, snakeCase } from '@galiprandi/react-tools/utilities/strings';
-
-toTitleCase('hello world'); // 'Hello World'
-onlyEmail('test@example.com'); // 'test@example.com'
-snakeCase('hello world'); // 'hello_world'
-```
-
-### userLanguage
-
-Browser language detection (used internally by useTranslator).
-
-```tsx
-import { getUserLanguage } from '@galiprandi/react-tools/utilities/userLanguage';
-
-const userLang = getUserLanguage(); // 'en', 'es', 'ja', etc.
-```
-
-## Common Patterns
-
-### Pattern 1: Search with Debounce
-
-```tsx
-function SearchComponent() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const debouncedSearch = useDebounce(searchTerm, 500);
-  const [results, setResults] = useState([]);
+function FutureExecution({ targetDate }: { targetDate: Date }) {
+  const { setTimeoutDate, clearTimer } = useTimer({
+    onSetTimer: (id) => console.log(`Timer ID ${id} set for future execution`),
+    onTimerComplete: (id) => console.log(`Timer ID ${id} completed!`),
+    onCancelTimer: (id) => console.log(`Timer ID ${id} cancelled!`),
+    onProgress: (progress) =>
+      console.log(`Progress: ${Math.round(progress * 100)}%`),
+  });
 
   useEffect(() => {
-    if (debouncedSearch) {
-      fetch(`/api/search?q=${debouncedSearch}`)
-        .then(res => res.json())
-        .then(setResults);
-    }
-  }, [debouncedSearch]);
+    setTimeoutDate(() => {
+      console.log("--- Fake fetch executed! ---");
+    }, targetDate);
 
-  return (
-    <>
-      <Input
-        value={searchTerm}
-        onChangeValue={setSearchTerm}
-        placeholder="Search..."
-      />
-      <AsyncBlock
-        promiseFn={() => fetch(`/api/search?q=${debouncedSearch}`).then(r => r.json())}
-        deps={[debouncedSearch]}
-        success={(data) => <ul>{data.map(item => <li>{item}</li>)}</ul>}
-      />
-    </>
-  );
+    return () => {
+      clearTimer();
+    };
+  }, [setTimeoutDate, clearTimer, targetDate]);
+
+  return <p>Check the console for timer messages.</p>;
 }
 ```
 
-### Pattern 2: Form with Validation
+**Parameters (options):**
+- `onSetTimer`: Callback fired when a new timer is successfully set
+- `onCancelTimer`: Callback fired when an active timer is cleared/cancelled
+- `onTimerComplete`: Callback fired when a timer completes naturally
+- `onProgress`: Callback fired periodically during long timers to report progress (0 to 1)
 
-```tsx
-function UserForm() {
-  return (
-    <Form<{ email: string; username: string }>
-      onSubmitValues={(values) => {
-        // values are already transformed and filtered
-        fetch('/api/users', {
-          method: 'POST',
-          body: JSON.stringify(values)
-        });
-      }}
-      filterEmptyValues
-    >
-      <Input
-        name="email"
-        label="Email"
-        transform="onlyEmail"
-        required
-      />
-      <Input
-        name="username"
-        label="Username"
-        transform="titleCase"
-        required
-      />
-      <button type="submit">Submit</button>
-    </Form>
-  );
-}
-```
+**Returns:**
+- `setTimeout`: Sets a timeout with event callbacks (accepts milliseconds or a Date)
+- `setInterval`: Sets an interval with event callbacks (accepts milliseconds)
+- `setTimeoutDate`: Sets a timeout to execute at a specific future Date
+- `setLimitedInterval`: Sets an interval that executes a fixed number of times
+- `clearTimer`: Clears any currently active timer
+- `isActive`: Returns true if a timer is currently active
+- `getCurrentTimerId`: Returns the ID of the currently active timer
+- `getRemainingIterations`: For `setLimitedInterval`, returns remaining executions
+- `getRemainingTime`: For an active `setTimeout`, returns estimated remaining time in ms
 
-### Pattern 3: AI Pipeline
+**Recommended Use Cases:**
+- **Scheduled Actions**: Execute actions at specific times or dates (e.g., send notifications at a future time)
+- **Countdown Timers**: Display countdown timers for events, deadlines, or expiration dates
+- **Polling**: Poll APIs at regular intervals to check for updates
+- **Progress Tracking**: Track progress of long-running operations with progress callbacks
+- **Auto-refresh**: Refresh data at intervals (e.g., stock prices, live scores)
+- **Session Timeouts**: Implement session timeout warnings or automatic logout
 
-```tsx
-function AIPipeline() {
-  const ai = useAI({ apis: ['languageDetector', 'translator'] });
-  const { lang, confidence } = useLanguageDetection({ text: inputText });
-  const { data, status } = useTranslator({
-    text: inputText,
-    sourceLanguage: 'auto',
-    targetLanguage: 'user'
-  });
+### useList
 
-  if (!ai.isAvailable) return <div>AI not available</div>;
+A React hook that simplifies managing array state in components. Provides immutable helper methods for common operations like adding, inserting, removing, updating, finding, and counting items based on index or item properties.
 
-  return (
-    <div>
-      <p>Detected: {lang} ({Math.round(confidence! * 100)}%)</p>
-      {status === 'translating' && <p>Translating...</p>}
-      {data && <p>Translation: {data}</p>}
-    </div>
-  );
-}
-```
+**Parameters:**
+- `initialList`: The initial array state (defaults to [])
 
-### Pattern 4: Lazy Loading with Progress
+**Returns:** An object containing the current array state (`list`) and helper functions to modify or query it immutably.
 
-```tsx
-function LazyImageGallery() {
-  const images = Array.from({ length: 50 }, (_, i) => ({
-    id: i,
-    src: `/images/image-${i}.jpg`
-  }));
+**Properties:**
+- `list`: The current array state
+- `addItem`: Adds an item to the end of the array
+- `insert`: Inserts an item at the specified index
+- `insertMany`: Adds multiple items to the end of the array
+- `removeByIdx`: Removes the item at the specified index
+- `removeBy`: Removes the first item where item[key] equals value
+- `removeManyBy`: Removes all items where item[key] equals value
+- `updateByIdx`: Updates the item at the specified index using an update function
+- `updateBy`: Updates the first item where item[key] equals value
+- `updateManyBy`: Updates all items where item[key] equals value
+- `clearList`: Removes all items from the list
+- `setList`: Replaces the entire list array
+- `findItemBy`: Finds and returns the first item where item[key] equals value
+- `findItemsBy`: Finds and returns all items where item[key] equals value
+- `count`: Returns the total number of items, or count matching an optional predicate
+- `toggle`: Adds an item if not present, or removes it if it is
+- `move`: Moves an item from one index to another immutably
+- `sort`: Sorts the list immutably using an optional comparison function
+- `shuffle`: Randomly reorders the list items immutably
 
-  return (
-    <div>
-      {images.map(img => (
-        <LazyRender
-          key={img.id}
-          placeholder={<div style={{ height: 300, background: '#eee' }}>Loading...</div>}
-          threshold={0.1}
-        >
-          <img src={img.src} alt={`Image ${img.id}`} loading="lazy" />
-        </LazyRender>
-      ))}
-    </div>
-  );
-}
-```
+**Recommended Use Cases:**
+- **Todo Lists**: Manage todo items with add, remove, toggle, and update operations
+- **Shopping Carts**: Handle cart items with quantity updates, removal, and total calculations
+- **Data Tables**: Manage table data with sorting, filtering, and row operations
+- **Tag Management**: Add/remove tags with toggle functionality
+- **Playlist Management**: Manage playlist items with reorder, remove, and add operations
+- **Form Field Arrays**: Handle dynamic form fields (e.g., multiple email addresses, phone numbers)
 
-## Integration with TanStack Query
+## Accessibility & Performance
 
-Cache AI results to avoid regenerating summaries for the same input.
+All components follow accessibility best practices:
 
-```tsx
-import { useQueryClient } from '@tanstack/react-query';
-import { useAISummarize } from '@galiprandi/react-tools';
+- ✅ `Dialog` uses proper ARIA roles and keyboard focus control
+- ✅ `Input` supports labeling, aria attributes, and datalists
+- ✅ `LazyRender` and `Observer` use `IntersectionObserver` to optimize rendering
 
-function CachedSummarizer() {
-  const queryClient = useQueryClient();
-  const { data, status, summarize, reset } = useAISummarize({
-    type: 'key-points',
-    streaming: true
-  });
+## FAQ
 
-  const handleSummarize = async (text: string) => {
-    const queryKey = ['ai-summary', text];
-    
-    // Check cache first
-    const cachedData = queryClient.getQueryData<string>(queryKey);
-    if (cachedData) return;
+**Q: Is this compatible with React Native?**\
+A: No, this library is intended for use in React DOM (web).
 
-    // Fetch with cache
-    await queryClient.fetchQuery({
-      queryKey,
-      queryFn: async () => {
-        await summarize(text);
-        return data;
-      },
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes
-    });
-  };
+**Q: Can I style components with Tailwind or CSS modules?**\
+A: Yes, components are unstyled and fully customizable.
 
-  const handleRegenerate = async (text: string) => {
-    // Invalidate cache to force regeneration
-    queryClient.removeQueries({ queryKey: ['ai-summary', text] });
-    reset();
-    await handleSummarize(text);
-  };
-}
-```
+**Q: Does it support SSR or work in Next.js?**\
+A: Yes, all components are compatible with SSR environments.
 
-**Key Patterns:**
-- Use `queryClient.getQueryData()` to check cache before calling AI
-- Use `queryClient.fetchQuery()` to execute and cache results
-- Use `queryClient.removeQueries()` to invalidate cache for regeneration
-- Build queryKeys from input parameters for unique cache entries
-- Set `staleTime` to control how long data is considered fresh
-- Set `gcTime` to control how long unused cache is kept
-
-### Advanced Pattern: Truncation + Custom Query Keys
-
-```tsx
-function truncateText(text: string, maxLines?: number, maxChars?: number): string {
-  let truncated = text;
-  if (maxLines) {
-    const lines = truncated.split('\n');
-    if (lines.length > maxLines) truncated = lines.slice(-maxLines).join('\n');
-  }
-  if (maxChars && truncated.length > maxChars) truncated = truncated.slice(-maxChars);
-  return truncated;
-}
-
-const handleSummarize = async (text: string, options: {
-  maxLines?: number;
-  maxChars?: number;
-  context?: string;
-  customQueryKey?: unknown[];
-}) => {
-  const { maxLines = 200, maxChars = 10000, context, customQueryKey } = options;
-  const truncatedText = truncateText(text, maxLines, maxChars);
-  const textWithContext = context ? `INSTRUCCIÓN: ${context}\n\n${truncatedText}` : truncatedText;
-  const queryKey = customQueryKey || ['ai-summary', text, JSON.stringify(options)];
-
-  const cachedData = queryClient.getQueryData<string>(queryKey);
-  if (cachedData) return cachedData;
-
-  return queryClient.fetchQuery({
-    queryKey,
-    queryFn: async () => {
-      await summarize(textWithContext, context);
-      return new Promise<string>((resolve) => {
-        const checkData = () => {
-          if (data) resolve(data);
-          else setTimeout(checkData, 50);
-        };
-        checkData();
-      });
-    },
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-  });
-};
-```
-
-**Advanced Features:**
-- Truncate text before AI processing to reduce token usage
-- Custom query keys for granular cache control
-- Polling pattern to wait for streaming results
-- Context injection for domain-specific prompts
-
-## Best Practices
-
-### AI Hooks
-1. Always check availability with `useAI` before using AI hooks
-2. Use `warmup: true` for faster first use in critical paths
-3. Handle loading states and errors appropriately
-4. Use `streaming: true` for better UX with long-running operations
-
-### AsyncBlock
-- Use `deps` array to re-execute when dependencies change
-- Set `timeOut` to prevent hanging requests
-- Leverage automatic cancellation - no need for manual AbortSignal
-- Use `onSuccess`/`onError` for side effects
-
-### Form/Input
-- Use `transform` prop for built-in validations (onlyEmail, titleCase, etc.)
-- Use `filterEmptyValues` on Form to exclude empty fields
-- Leverage `onChangeDebounce` for search/filter inputs
-- Combine with `useDebounce` for form fields that trigger API calls
-
-### Performance
-- Use `LazyRender` for heavy images or components below the fold
-- Use `Observer` for scroll-based animations or lazy loading
-- Use `useDebounce` for search/filter inputs to reduce API calls
-- Use `useTimer` instead of direct `setTimeout`/`setInterval` for automatic cleanup
-
-## Browser Compatibility
-
-- All components work in modern browsers
-- AI hooks require Chrome with experimental AI APIs enabled
-- Dialog uses native `<dialog>` element (polyfill available for older browsers)
-- IntersectionObserver (Observer, LazyRender) requires modern browser support
+**Q: How can I report a bug or request a new feature?**\
+A: Open an issue on the [GitHub repo](https://github.com/galiprandi/react-tools/issues).
