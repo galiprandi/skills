@@ -1,6 +1,6 @@
 ---
 name: react-tools
-description: Guide for using @galiprandi/react-tools library. Use when working with React projects that need lightweight, dependency-free utilities including components (AsyncBlock, Form, Input, DateTime, Dialog, Observer, LazyRender) and hooks (useAI, useAISummarize, useLanguageDetection, useTranslator, useAIPrompt, useAIWrite, useAIRewriter, useDebounce, useTimer, useList). This library provides accessible, composable React utilities with no configuration needed.
+description: Guide for using @galiprandi/react-tools library. Use when working with React projects that need lightweight, dependency-free utilities including components (AsyncBlock, Form, Input, DateTime, Dialog, Observer, LazyRender) and hooks (useAI, useAISummarize, useLanguageDetection, useTranslator, useAIPrompt, useAIWrite, useAIRewriter, useAIProofreader, useDebounce, useTimer, useList). This library provides accessible, composable React utilities with no configuration needed.
 ---
 
 # React Tools
@@ -572,6 +572,73 @@ function MyComponent() {
 - **Audience Adaptation**: Rewrite content for different audiences
 - **Review Polishing**: Improve feedback constructiveness
 - **Format Conversion**: Convert content to markdown or plain-text
+
+### useAIProofreader
+
+Hook for using the browser's Proofreader API to check grammar and spelling with highlighted corrections. Provides a React interface to Chrome's native Proofreader API with model initialization, download progress, and automatic cleanup.
+
+```tsx
+import { useAIProofreader } from '@galiprandi/react-tools';
+
+function MyComponent() {
+  const { data, corrections, proofread, status } = useAIProofreader({
+    expectedInputLanguages: ['en'],
+  });
+
+  const handleProofread = async () => {
+    await proofread('I seen him yesterday at the store.');
+  };
+
+  return (
+    <div>
+      <button onClick={handleProofread} disabled={status === 'proofreading'}>
+        Proofread
+      </button>
+      {status === 'proofreading' && <p>Proofreading...</p>}
+      {data && <p>{data}</p>}
+      {corrections.length > 0 && (
+        <ul>
+          {corrections.map((c, i) => (
+            <li key={i}>
+              {c.type && <span>Type: {c.type}</span>}
+              {c.explanation && <span> - {c.explanation}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+```
+
+**Options:**
+- `expectedInputLanguages`: Expected input languages (BCP 47 format, e.g., 'en', 'es')
+- `warmup`: Preload model on mount (default: true)
+
+**Returns:**
+- `data`: The corrected text
+- `corrections`: Array of corrections with startIndex, endIndex, type, and explanation
+- `status`: Current status of the proofreading process
+- `progress`: Download progress if model is being downloaded
+- `error`: Error object if proofreading failed
+- `proofread`: Function to proofread text
+- `reset`: Function to reset the hook state
+
+**ProofreadCorrection:**
+- `startIndex`: Start index of the correction in the original text
+- `endIndex`: End index of the correction in the original text
+- `type`: Type of correction (e.g., 'grammar', 'spelling')
+- `explanation`: Explanation of the correction
+
+**Note:** Requires Chrome's Proofreader API, which is currently experimental.
+
+**Recommended Use Cases:**
+- **Text Editing**: Grammar and spell checking in text editors
+- **Content Review**: Improving writing quality before publishing
+- **Email Validation**: Catching typos before sending emails
+- **Document Proofreading**: Ensuring professional quality in documents
+- **Blog Post Review**: Improving readability of blog content
+- **Comment Moderation**: Identifying language issues in user comments
 
 ### useLanguageDetection
 
