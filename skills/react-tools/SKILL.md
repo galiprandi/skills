@@ -96,11 +96,18 @@ Custom input component supporting transformations, debounce, datalist, and more.
   onChangeValue={(val) => console.log(val)}
   debounceDelay={500}
 />
+
+// Multiple transforms applied sequentially
+<Input
+  label="Username"
+  transform={['toUpperCase', 'onlyAlphanumeric']}
+  onChangeValue={(val) => console.log(val)}
+/>
 ```
 
 **Props:**
 - `label`: Optional label
-- `transform`: Built-in value transforms (camelCase, pascalCase, kebabCase, titleCase, onlyEmail, etc.)
+- `transform`: Built-in value transforms (camelCase, pascalCase, kebabCase, titleCase, onlyEmail, etc.) - can be a single transform or an array of transforms applied sequentially
 - `transformFn`: Custom value transform function
 - `onChangeValue`: Fires on value change
 - `onChangeDebounce`: Fires after debounce
