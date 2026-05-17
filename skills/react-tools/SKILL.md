@@ -1,6 +1,6 @@
 ---
 name: react-tools
-description: Guide for using @galiprandi/react-tools library. Use when working with React projects that need lightweight, dependency-free utilities including components (AsyncBlock, Form, Input, DateTime, Dialog, Observer, LazyRender) and hooks (useAI, useAISummarize, useLanguageDetection, useTranslator, useDebounce, useTimer, useList). This library provides accessible, composable React utilities with no configuration needed.
+description: Guide for using @galiprandi/react-tools library. Use when working with React projects that need lightweight, dependency-free utilities including components (AsyncBlock, Form, Input, DateTime, Dialog, Observer, LazyRender) and hooks (useAI, useAISummarize, useLanguageDetection, useTranslator, useAIPrompt, useAIWrite, useDebounce, useTimer, useList). This library provides accessible, composable React utilities with no configuration needed.
 ---
 
 # React Tools
@@ -447,6 +447,68 @@ await prompt('Compare these two images');
 - **Content Generation**: Generate text content with configurable creativity and sampling
 - **Question Answering**: Answer questions with context-aware responses
 - **Multimodal AI**: Combine text, images, and audio in a single prompt
+
+### useAIWrite
+
+Hook for using the browser's Writer API to generate written content with customizable tone and format. Provides a React interface to Chrome's native Writer API with model initialization, download progress, streaming support, shared context management, and automatic cleanup.
+
+```tsx
+import { useAIWrite } from '@galiprandi/react-tools';
+
+function MyComponent() {
+  const { data, write, status, progress } = useAIWrite({
+    tone: 'formal',
+    format: 'markdown',
+    length: 'medium',
+    sharedContext: 'This is for a professional business email',
+    streaming: true
+  });
+
+  const handleWrite = async () => {
+    await write('Write a thank you email to a colleague for their help on the project', 'I want to mention their attention to detail');
+  };
+
+  return (
+    <div>
+      <button onClick={handleWrite} disabled={status === 'writing'}>
+        Generate
+      </button>
+      {status === 'writing' && <p>Writing...</p>}
+      {status === 'downloading' && <p>Downloading model...</p>}
+      {data && <p>{data}</p>}
+    </div>
+  );
+}
+```
+
+**Options:**
+- `tone`: Writing tone ('formal' | 'neutral' | 'casual', default: 'neutral')
+- `format`: Output format ('markdown' | 'plain-text', default: 'markdown')
+- `length`: Length of the output ('short' | 'medium' | 'long', default: 'short')
+- `sharedContext`: Shared context for all writing tasks (helps maintain consistency across multiple writes)
+- `outputLanguage`: Output language (BCP 47 format, e.g., 'en', 'es', 'fr')
+- `expectedInputLanguages`: Expected input languages (BCP 47 format)
+- `expectedContextLanguages`: Expected context languages (BCP 47 format)
+- `streaming`: Enable streaming output (default: false)
+- `warmup`: Preload model on mount (default: true)
+
+**Returns:**
+- `data`: The generated written content
+- `status`: Current status of the writing process
+- `progress`: Download progress if model is being downloaded
+- `error`: Error object if writing failed
+- `write`: Function to generate written content with optional context
+- `reset`: Function to reset the hook state
+
+**Note:** Requires Chrome's Writer API, which is currently experimental.
+
+**Recommended Use Cases:**
+- **Email Generation**: Generate professional or casual emails (thank you, follow-up, introduction)
+- **Blog Post Writing**: Create blog posts with customizable tone and length
+- **Social Media Content**: Generate social media posts with appropriate formatting
+- **Document Drafting**: Draft reports, proposals, or documentation
+- **Marketing Copy**: Create marketing materials with consistent tone
+- **Content Templates**: Generate content templates with shared context for consistency
 
 ### useLanguageDetection
 
