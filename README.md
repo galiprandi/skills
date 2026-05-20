@@ -28,15 +28,21 @@ AI Skills are specialized knowledge modules that teach your AI assistant how to 
 - AI-powered features
 - Performance-critical UIs
 
+### Context Organizer
+
+**context-organizer** - A skill for managing and optimizing the context within AI coding environments, including optimizing the storage and retrieval of technical information, rewriting ambiguous test descriptions, and compiling clean and structured documentation.
+
+**What it helps with:**
+- Optimizing the storage and retrieval of technical information
+- Rewriting ambiguous test descriptions
+- Compiling clean and structured documentation
+
+**Perfect for:**
+- AI coding environments
+- Technical documentation
+- Test description optimization
+
 ## 🛠️ Installation
-
-### Quick Install (Single Skill)
-
-```bash
-npx skills add https://github.com/galiprandi/skills --skill react-tools
-```
-
-### Install All Skills
 
 ```bash
 npx skills add https://github.com/galiprandi/skills
