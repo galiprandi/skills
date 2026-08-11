@@ -94,8 +94,16 @@ node scripts/browser.js close [--session <name>] [--force]
 node scripts/browser.js close-all [--force]
 node scripts/browser.js ensure [--session <name>]
 
+# Tab management (wrapper commands, NOT exec)
+node scripts/browser.js tab-list
+node scripts/browser.js tab-new <url> --name <name>
+node scripts/browser.js tab-select <name>
+node scripts/browser.js tab-close <name>
+
 # Passthrough to playwright-cli (for click, fill, snapshot, eval, etc.)
-# The command and args go AFTER "exec" with NO quotes around the whole thing
+# "exec" forwards the REST of the args to playwright-cli.
+# DO NOT write "playwright-cli" again. DO NOT wrap the command in quotes.
+# Just write the subcommand name and its args directly after "exec".
 node scripts/browser.js exec snapshot
 node scripts/browser.js exec click <ref>
 node scripts/browser.js exec fill <ref> "text"
@@ -104,10 +112,15 @@ node scripts/browser.js exec find "text to search"
 node scripts/browser.js exec press Enter
 node scripts/browser.js exec screenshot --filename=page.png
 
-# WRONG (don't quote the whole command):
-# node scripts/browser.js exec "click '[data-tooltip=Redactar]'"
+# WRONG — these all fail:
+#   node scripts/browser.js exec "playwright-cli tab-list"    (don't write playwright-cli)
+#   node scripts/browser.js exec "playwright-cli snapshot"    (don't write playwright-cli)
+#   node scripts/browser.js exec "click '[data-tooltip=Redactar]'"  (don't quote the command)
+#   node scripts/browser.js exec "snapshot"                   (don't quote the command)
 # CORRECT:
-# node scripts/browser.js exec click <ref>
+#   node scripts/browser.js exec snapshot
+#   node scripts/browser.js exec click <ref>
+#   node scripts/browser.js exec tab-list                     (playwright-cli tab-list via exec)
 
 # Sessions for parallel subagents
 node scripts/browser.js attach --session <name>
