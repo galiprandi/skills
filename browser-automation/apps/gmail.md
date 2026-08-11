@@ -1,13 +1,13 @@
 ---
 name: gmail
-description: Automate Gmail with playwright-cli. Covers reading inbox via Atom feed, composing emails (with validated selectors), replying, searching, archiving, labeling, keyboard shortcuts, and bulk delete. Use when checking email, sending messages, managing inbox, or extracting email data. Requires browser-core skill for setup.
+description: Automate Gmail with playwright-cli. Covers reading inbox via Atom feed, composing emails (with validated selectors), replying, searching, archiving, labeling, keyboard shortcuts, and bulk delete. Use when checking email, sending messages, managing inbox, or extracting email data. Part of the browser-automation skill.
 ---
 
 # Gmail Automation
 
 Automate Gmail via `playwright-cli` using a mix of UI interactions, keyboard shortcuts, and the Gmail Atom feed for bulk inbox reading.
 
-**Prerequisite:** Read the `browser-core` skill first for profile-dir setup, the safe wrapper, and golden rules.
+**Prerequisite:** Read the main Browser Automation guide first for profile-dir setup, the safe wrapper, and golden rules.
 
 ## Setup
 
@@ -85,7 +85,7 @@ Fields: .yW .zF or .yW span[email] for sender, .bog for subject, .xW.xY span[tit
 
 ```bash
 node scripts/browser.js goto "https://mail.google.com/mail/u/0/#all"
-# Wait for rows to load (in-page polling, see browser-core Rule 2)
+# Wait for rows to load (in-page polling, see Browser Automation Rule 2)
 playwright-cli eval "(async function(){
   for (let i = 0; i < 50; i++) {
     if (document.querySelectorAll('tr.zA').length > 5) return 'ready';
@@ -148,7 +148,7 @@ playwright-cli eval "(function(){
 node scripts/browser.js goto "https://mail.google.com/mail/u/0/#inbox/<threadId>"
 ```
 
-Or click an email row from the inbox list (use eval, not ref-based click — see browser-core Rule 1):
+Or click an email row from the inbox list (use eval, not ref-based click — see Browser Automation Rule 1):
 
 ```bash
 playwright-cli eval "(function(){
@@ -497,7 +497,7 @@ Requires an app password (not your regular password). Generate at https://myacco
 
 ### Gmail loads slowly — always wait
 
-Gmail is a heavy SPA. After `goto` or any navigation, use in-page polling (browser-core Rule 2):
+Gmail is a heavy SPA. After `goto` or any navigation, use in-page polling (Browser Automation Rule 2):
 
 ```bash
 node scripts/browser.js goto "https://mail.google.com/mail/u/0/#inbox"

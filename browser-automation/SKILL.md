@@ -1,10 +1,10 @@
 ---
-name: browser-core
-description: Control a dedicated browser via playwright-cli for web automation. Use when automating web apps, filling forms, scraping data, testing flows, or managing sessions across multiple sites. Covers the safe wrapper, golden rules for reliability, tab parallelization, snapshots, eval, and all core commands. Site-specific tips live in separate skills (linkedin, gmail, etc.).
+name: browser-automation
+description: Control a dedicated browser via playwright-cli for web automation. Covers the safe wrapper, golden rules for reliability, tab parallelization, snapshots, eval, and all core commands. Includes app-specific guides for Gmail, LinkedIn, and more. Use when automating any web app.
 allowed-tools: Bash(playwright-cli:*) Bash(npx:*) Bash(npm:*) Bash(node:*)
 ---
 
-# Browser Core
+# Browser Automation
 
 Control a dedicated Chromium browser via `playwright-cli` from the terminal. Token-efficient: commands return concise output, not verbose accessibility trees.
 
@@ -47,8 +47,8 @@ The wrapper script (`scripts/browser.js` in this skill) guarantees the profile i
 Copy the wrapper to your repo:
 
 ```bash
-# From the skills repo, copy to your project
-cp browser-core/scripts/browser.js /path/to/your-repo/scripts/browser.js
+# After installing this skill, copy the wrapper to your repo's scripts/ dir
+cp .agents/skills/browser-automation/scripts/browser.js scripts/browser.js
 ```
 
 Create a config file (optional, defaults to headless):
@@ -590,3 +590,16 @@ See [references/parallel-agents.md](references/parallel-agents.md) for the full 
 ## Profile management
 
 See [references/profile-management.md](references/profile-management.md) for profile dir setup, auth state persistence, and headed/headless workflow.
+
+## App guides
+
+When automating a specific web app, load the corresponding guide for validated selectors, patterns, and gotchas. Each guide is a separate markdown file under `apps/`.
+
+| App | Guide | What it covers |
+|---|---|---|
+| Gmail | [apps/gmail.md](apps/gmail.md) | Atom feed, compose (native value setter), reply (contenteditable), search operators, keyboard shortcuts, bulk delete, SMTP alternative |
+| LinkedIn | [apps/linkedin.md](apps/linkedin.md) | Voyager API messaging, bulk inbox, tiptap editor fix, connection requests, notifications, saved jobs, Easy Apply, post search |
+
+**When to load an app guide:** when the agent needs to interact with that specific app (read inbox, send message, apply to job, etc.). The core skill (this file) is enough for generic browser operations. The app guides are loaded on demand to save tokens.
+
+**Adding new apps:** create a new `apps/<name>.md` file with the same structure (selectors, patterns, gotchas, anti-patterns). No need to modify this file; the agent discovers app guides by listing the `apps/` directory.

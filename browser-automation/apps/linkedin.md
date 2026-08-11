@@ -1,13 +1,13 @@
 ---
 name: linkedin
-description: Automate LinkedIn with playwright-cli. Covers messaging (send text + attachments via Voyager endpoints), bulk inbox fetch, profile navigation, job search, Easy Apply, connection requests, notifications, saved jobs, and the tiptap editor fix. Use when sending LinkedIn messages, reading inbox, applying to jobs, connecting with people, or extracting profile data. Requires browser-core skill for setup.
+description: Automate LinkedIn with playwright-cli. Covers messaging (send text + attachments via Voyager endpoints), bulk inbox fetch, profile navigation, job search, Easy Apply, connection requests, notifications, saved jobs, and the tiptap editor fix. Use when sending LinkedIn messages, reading inbox, applying to jobs, connecting with people, or extracting profile data. Part of the browser-automation skill.
 ---
 
 # LinkedIn Automation
 
 Automate LinkedIn via `playwright-cli` using a mix of UI interactions and internal Voyager API endpoints. The API endpoints run inside `page.evaluate()` so they inherit the browser's cookies automatically.
 
-**Prerequisite:** Read the `browser-core` skill first for profile-dir setup, the safe wrapper, and golden rules.
+**Prerequisite:** Read the main Browser Automation guide first for profile-dir setup, the safe wrapper, and golden rules.
 
 ## Setup
 
@@ -91,7 +91,7 @@ playwright-cli eval "(async function(){
   return 'timeout';
 })()"
 
-# Click conversation by name (atomic eval, browser-core Rule 1)
+# Click conversation by name (atomic eval, Browser Automation Rule 1)
 playwright-cli eval "(function(){
   const items = document.querySelectorAll('.msg-conversation-listitem');
   for (const item of items) {
@@ -104,7 +104,7 @@ playwright-cli eval "(function(){
   return 'not_found';
 })()"
 
-# Verify (browser-core Rule 5: check DOM, not URL)
+# Verify (Browser Automation Rule 5: check DOM, not URL)
 playwright-cli eval "(function(){
   const panel = document.querySelector('.msg-s-message-list-container');
   const header = document.querySelector('h2');
@@ -609,4 +609,4 @@ csrf = csrf ? csrf.split('=')[1].replace(/"/g,'') : '';
 
 ## API reference
 
-See [references/voyager-api.md](references/voyager-api.md) for detailed endpoint documentation.
+See [linkedin-references/voyager-api.md](linkedin-references/voyager-api.md) for detailed endpoint documentation.
