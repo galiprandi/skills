@@ -142,3 +142,9 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 .DS_Store
+
+# Browser profiles and auth state — NEVER commit
+.browser-profile/
+.playwright-cli/
+*.auth-state.json
+*.session-state.json

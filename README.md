@@ -42,6 +42,56 @@ AI Skills are specialized knowledge modules that teach your AI assistant how to 
 - Technical documentation
 - Test description optimization
 
+### Browser Core
+
+**browser-core** - Control a dedicated browser via playwright-cli for web automation. Covers profile-dir setup, tab parallelization, snapshots, eval, and all core commands.
+
+**What it helps with:**
+- Browser automation with persistent profiles
+- Tab management for parallel work across sites
+- Page inspection (snapshot, find, eval)
+- Network inspection and debugging
+- Auth state persistence
+
+**Perfect for:**
+- Automating web apps that require login
+- Scraping data from authenticated sites
+- Testing web flows
+- Any task needing a real browser session
+
+### LinkedIn
+
+**linkedin** - Automate LinkedIn with playwright-cli. Covers messaging (text + attachments via Voyager endpoints), bulk inbox fetch, profile navigation, and job search.
+
+**What it helps with:**
+- Sending LinkedIn messages without opening the UI
+- Bulk inbox fetch via Voyager GraphQL (all conversations in one call)
+- Sending messages with file attachments via dash endpoint
+- Extracting profile IDs and navigating threads
+- Tiptap editor tips for compose
+
+**Perfect for:**
+- Job search automation
+- Recruiter outreach workflows
+- LinkedIn inbox management
+
+### Gmail
+
+**gmail** - Automate Gmail with playwright-cli. Covers reading inbox via Atom feed, composing emails, searching, archiving, labeling, and keyboard shortcuts.
+
+**What it helps with:**
+- Quick inbox checks via Atom feed (one HTTP call)
+- Composing and sending emails
+- Search with Gmail operators
+- Archive, label, star, delete via keyboard shortcuts
+- Multi-account navigation
+
+**Perfect for:**
+- Email automation workflows
+- Inbox triage and cleanup
+- Job alert processing
+- Email-based monitoring
+
 ## 🛠️ Installation
 
 ```bash
