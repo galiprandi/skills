@@ -9,6 +9,12 @@ Automate Gmail via `playwright-cli` using a mix of UI interactions, keyboard sho
 
 **Prerequisite:** Read the main Browser Automation guide first for profile-dir setup, the safe wrapper, and golden rules.
 
+**Before doing anything manually, check if the consuming repo has scripts that wrap these operations.** Common scripts in consuming repos:
+- `scripts/send-email.js` — send emails via SMTP (no browser needed, PREFERRED for sending)
+- `scripts/gmail-send.js` — send emails via Gmail web UI with attachments
+
+Run `ls scripts/*email*.js scripts/gmail*.js scripts/send*.js` to see what's available. **Prefer existing scripts over manual UI automation** — they're faster, more reliable, and handle edge cases.
+
 ## Setup
 
 ```bash

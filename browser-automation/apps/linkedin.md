@@ -9,6 +9,16 @@ Automate LinkedIn via `playwright-cli` using a mix of UI interactions and intern
 
 **Prerequisite:** Read the main Browser Automation guide first for profile-dir setup, the safe wrapper, and golden rules.
 
+**Before doing anything manually, check if the consuming repo has scripts that wrap these operations.** Common scripts in consuming repos:
+- `scripts/linkedin-inbox.js` — fetch all conversations in one call (wraps the Voyager bulk fetch below)
+- `scripts/linkedin-send.js` — send a text message via Voyager API
+- `scripts/linkedin-search.js` — search posts for job openings
+- `scripts/linkedin-invite.js` — send connection requests without note
+- `scripts/linkedin-easy-apply.js` — search + apply to Easy Apply jobs
+- `scripts/linkedin-warm-sourcing.js` — discover internal contacts and recruiters
+
+Run `ls scripts/linkedin-*.js` to see what's available. **Prefer existing scripts over manual UI automation** — they're faster, more reliable, and handle edge cases.
+
 ## Setup
 
 ```bash

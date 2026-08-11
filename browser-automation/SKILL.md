@@ -19,6 +19,8 @@ Before automating a specific web app, **read the corresponding guide** in `apps/
 
 **How to load:** read the file with your read tool. Example: `read .agents/skills/browser-automation/apps/gmail.md`
 
+**Check for existing scripts first:** the consuming repo may already have scripts that wrap common operations (e.g. `scripts/linkedin-inbox.js`, `scripts/send-email.js`). Run `ls scripts/` to see what's available. **Prefer existing scripts over manual UI automation** — they're faster, more reliable, and handle edge cases. The app guides list common scripts to look for.
+
 **If the app you need is not listed:** use the generic patterns in this file. Consider creating a new `apps/<name>.md` guide after validating your approach.
 
 ## Setup
