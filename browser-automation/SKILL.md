@@ -8,6 +8,19 @@ allowed-tools: Bash(playwright-cli:*) Bash(npx:*) Bash(npm:*) Bash(node:*)
 
 Control a dedicated Chromium browser via `playwright-cli` from the terminal. Token-efficient: commands return concise output, not verbose accessibility trees.
 
+## App guides (LOAD BEFORE interacting with a specific app)
+
+Before automating a specific web app, **read the corresponding guide** in `apps/`. These guides contain validated selectors, event sequences, and gotchas that save you from trial-and-error.
+
+| App | Guide | When to load |
+|---|---|---|
+| Gmail | `apps/gmail.md` | Before any Gmail operation (compose, reply, read inbox, search, delete) |
+| LinkedIn | `apps/linkedin.md` | Before any LinkedIn operation (messaging, connections, jobs, Easy Apply, notifications) |
+
+**How to load:** read the file with your read tool. Example: `read .agents/skills/browser-automation/apps/gmail.md`
+
+**If the app you need is not listed:** use the generic patterns in this file. Consider creating a new `apps/<name>.md` guide after validating your approach.
+
 ## Setup
 
 ### Install
@@ -78,7 +91,19 @@ node scripts/browser.js close-all [--force]
 node scripts/browser.js ensure [--session <name>]
 
 # Passthrough to playwright-cli (for click, fill, snapshot, eval, etc.)
-node scripts/browser.js exec <cmd> [args...] [--tab <name>] [--session <name>]
+# The command and args go AFTER "exec" with NO quotes around the whole thing
+node scripts/browser.js exec snapshot
+node scripts/browser.js exec click <ref>
+node scripts/browser.js exec fill <ref> "text"
+node scripts/browser.js exec eval "js expression"
+node scripts/browser.js exec find "text to search"
+node scripts/browser.js exec press Enter
+node scripts/browser.js exec screenshot --filename=page.png
+
+# WRONG (don't quote the whole command):
+# node scripts/browser.js exec "click '[data-tooltip=Redactar]'"
+# CORRECT:
+# node scripts/browser.js exec click <ref>
 
 # Sessions for parallel subagents
 node scripts/browser.js attach --session <name>
@@ -149,7 +174,7 @@ clickRef(ref)  # may fail, ref may be stale
 **Right:**
 ```bash
 # Use eval to find and click by text in one atomic call
-playwright-cli eval "(function(){
+node scripts/browser.js exec eval "(function(){
   const els = document.querySelectorAll('a, button, [role=\"link\"]');
   for (const el of els) {
     if (el.textContent.includes('Message')) { el.click(); return 'clicked'; }
@@ -164,16 +189,16 @@ Shell `sleep` between browser commands kills the playwright-cli daemon session. 
 
 **Wrong:**
 ```bash
-playwright-cli goto "https://example.com"
+node scripts/browser.js goto "https://example.com"
 sleep 4                        # session may die here
-playwright-cli snapshot        # fails: "No active session"
+node scripts/browser.js exec snapshot        # fails: "No active session"
 ```
 
 **Right:**
 ```bash
 # Use eval with in-page polling (keeps connection alive)
-playwright-cli goto "https://example.com"
-playwright-cli eval "(async function(){
+node scripts/browser.js goto "https://example.com"
+node scripts/browser.js exec eval "(async function(){
   for (let i = 0; i < 50; i++) {
     if (document.querySelector('div.target-element')) return 'ready';
     await new Promise(r => setTimeout(r, 200));
@@ -213,7 +238,7 @@ SPAs (LinkedIn, Gmail, React apps) update the right panel without changing the U
 **Right:** Check if the target container exists and matches expected content
 
 ```bash
-playwright-cli eval "(function(){
+node scripts/browser.js exec eval "(function(){
   const panel = document.querySelector('.msg-s-message-list-container');
   const header = document.querySelector('h2');
   if (panel && header && header.textContent.includes('Person Name')) return 'ok';
@@ -227,14 +252,14 @@ Doing wait + click + verify in one `eval` call is more robust than multiple sepa
 
 **Wrong:**
 ```bash
-playwright-cli eval "document.querySelector('#btn')"
-playwright-cli eval "document.querySelector('#btn').click()"
-playwright-cli eval "document.querySelector('#result')"
+node scripts/browser.js exec eval "document.querySelector('#btn')"
+node scripts/browser.js exec eval "document.querySelector('#btn').click()"
+node scripts/browser.js exec eval "document.querySelector('#result')"
 ```
 
 **Right:**
 ```bash
-playwright-cli eval "(function(){
+node scripts/browser.js exec eval "(function(){
   const btn = document.querySelector('#btn');
   if (!btn) return 'not_found';
   btn.click();
@@ -267,7 +292,7 @@ node scripts/browser.js open "https://mail.google.com" && \
 ```bash
 playwright-cli open [url]              # open browser (headless by default)
 playwright-cli open [url] --headed     # open visible browser
-playwright-cli goto <url>              # navigate current tab
+node scripts/browser.js goto <url>              # navigate current tab
 playwright-cli go-back                 # browser back button
 playwright-cli go-forward              # browser forward button
 playwright-cli reload                  # reload page
@@ -277,58 +302,60 @@ playwright-cli close                   # close browser
 ### Snapshot (the most important command)
 
 ```bash
-playwright-cli snapshot                # capture page structure with element refs
-playwright-cli snapshot <ref>          # snapshot a specific element
-playwright-cli snapshot "#main"        # snapshot a CSS selector
+node scripts/browser.js exec snapshot                # capture page structure with element refs
+node scripts/browser.js exec snapshot <ref>          # snapshot a specific element (smaller output)
+node scripts/browser.js exec snapshot "#main"        # snapshot a CSS selector
 ```
 
-Returns a tree of the page with `[ref=eXXX]` identifiers. Use these refs for click/fill/select. **Always take a fresh snapshot before interacting** — refs change after any page mutation.
+Returns a tree of the page with `[ref=eXXX]` identifiers. Use these refs for click/fill/select. **Always take a fresh snapshot or find before interacting** — refs change after any page mutation.
 
-### Find (search within snapshot)
+**Warning:** Full snapshots of complex SPAs (Gmail, LinkedIn, Facebook) are HUGE and get truncated in the output. Prefer `find` or snapshot a specific element instead.
+
+### Find (search for elements — PREFERRED over full snapshot)
 
 ```bash
-playwright-cli find "text"             # search current snapshot for text
-playwright-cli find "regex"            # search with regex
-playwright-cli find --regex "/sign (in|up)/i"  # with flags
+node scripts/browser.js exec find "text"             # search for text, returns matching elements with refs
+node scripts/browser.js exec find "regex"            # search with regex
+node scripts/browser.js exec find --regex "/sign (in|up)/i"  # with flags
 ```
 
-Returns matching nodes with context. Useful for locating elements without a full snapshot.
+Returns matching nodes with refs. Much smaller output than a full snapshot. **Use this as your primary way to locate elements on complex pages.**
 
 ### Interact
 
 ```bash
-playwright-cli click <ref>             # click an element
-playwright-cli click <ref> right       # right-click
-playwright-cli dblclick <ref>          # double-click
-playwright-cli fill <ref> "text"       # fill input/textarea (replaces content)
-playwright-cli fill <ref> "text" --submit  # fill + press Enter
-playwright-cli type "text"             # type into focused element (appends)
-playwright-cli select <ref> "value"    # select dropdown option
-playwright-cli check <ref>             # check checkbox/radio
-playwright-cli uncheck <ref>           # uncheck checkbox
-playwright-cli hover <ref>             # hover over element
-playwright-cli press Enter             # press keyboard key
-playwright-cli upload <file>           # upload file to file chooser
-playwright-cli drag <startRef> <endRef>  # drag and drop
+node scripts/browser.js exec click <ref>             # click an element
+node scripts/browser.js exec click <ref> right       # right-click
+node scripts/browser.js exec dblclick <ref>          # double-click
+node scripts/browser.js exec fill <ref> "text"       # fill input/textarea (replaces content)
+node scripts/browser.js exec fill <ref> "text" --submit  # fill + press Enter
+node scripts/browser.js exec type "text"             # type into focused element (appends)
+node scripts/browser.js exec select <ref> "value"    # select dropdown option
+node scripts/browser.js exec check <ref>             # check checkbox/radio
+node scripts/browser.js exec uncheck <ref>           # uncheck checkbox
+node scripts/browser.js exec hover <ref>             # hover over element
+node scripts/browser.js exec press Enter             # press keyboard key
+node scripts/browser.js exec upload <file>           # upload file to file chooser
+node scripts/browser.js exec drag <startRef> <endRef>  # drag and drop
 ```
 
 ### Eval (run JavaScript in page context)
 
 ```bash
 # Simple expression
-playwright-cli eval "() => document.title"
+node scripts/browser.js exec eval "() => document.title"
 
 # Access DOM
-playwright-cli eval "() => document.querySelector('h1')?.textContent"
+node scripts/browser.js exec eval "() => document.querySelector('h1')?.textContent"
 
 # Run inline IIFE for complex logic
-playwright-cli eval "(function(){ return JSON.stringify({url: location.href, title: document.title}) })()"
+node scripts/browser.js exec eval "(function(){ return JSON.stringify({url: location.href, title: document.title}) })()"
 
 # Eval on a specific element (ref becomes 'element' inside)
-playwright-cli eval "() => element.textContent" <ref>
+node scripts/browser.js exec eval "() => element.textContent" <ref>
 
 # Async eval (fetch with cookies)
-playwright-cli eval "(async () => { const r = await fetch('/api/data'); return JSON.stringify(await r.json()) })()"
+node scripts/browser.js exec eval "(async () => { const r = await fetch('/api/data'); return JSON.stringify(await r.json()) })()"
 ```
 
 Eval runs in the page context with all cookies. Use it for:
@@ -341,10 +368,10 @@ Eval runs in the page context with all cookies. Use it for:
 ### Screenshot / PDF
 
 ```bash
-playwright-cli screenshot              # full page screenshot
-playwright-cli screenshot <ref>        # screenshot specific element
-playwright-cli screenshot --filename=page.png
-playwright-cli pdf --filename=page.pdf # save page as PDF
+node scripts/browser.js exec screenshot              # full page screenshot
+node scripts/browser.js exec screenshot <ref>        # screenshot specific element
+node scripts/browser.js exec screenshot --filename=page.png
+node scripts/browser.js exec pdf --filename=page.pdf # save page as PDF
 ```
 
 ## Tab management (parallelization)
@@ -352,29 +379,29 @@ playwright-cli pdf --filename=page.pdf # save page as PDF
 Tabs let you work on multiple sites simultaneously in one browser instance.
 
 ```bash
-playwright-cli tab-new [url]           # create new tab
-playwright-cli tab-list                # list all tabs with indices
-playwright-cli tab-select <index>      # switch to tab by index
-playwright-cli tab-close [index]       # close tab (current if no index)
+node scripts/browser.js exec tab-new [url]           # create new tab
+node scripts/browser.js exec tab-list                # list all tabs with indices
+node scripts/browser.js exec tab-select <index>      # switch to tab by index
+node scripts/browser.js exec tab-close [index]       # close tab (current if no index)
 ```
 
 **Parallelization pattern:** open one tab per site, switch between them with `tab-select`.
 
 ```bash
 playwright-cli open "https://gmail.com"
-playwright-cli tab-new "https://linkedin.com"
-playwright-cli tab-new "https://discord.com"
+node scripts/browser.js exec tab-new "https://linkedin.com"
+node scripts/browser.js exec tab-new "https://discord.com"
 
 # Work on Gmail (tab 0)
-playwright-cli tab-select 0
-playwright-cli snapshot
+node scripts/browser.js exec tab-select 0
+node scripts/browser.js exec snapshot
 
 # Switch to LinkedIn (tab 1)
-playwright-cli tab-select 1
-playwright-cli snapshot
+node scripts/browser.js exec tab-select 1
+node scripts/browser.js exec snapshot
 
 # Close when done
-playwright-cli tab-close 1
+node scripts/browser.js exec tab-close 1
 ```
 
 **Tab tips:**
@@ -467,22 +494,38 @@ playwright-cli console warning          # only warnings
 
 ## Efficiency patterns (save tokens)
 
-**Shallow snapshot first (depth-limited):**
+**IMPORTANT: Full snapshots of complex pages (Gmail, LinkedIn, Facebook) are HUGE and get truncated.** Use these patterns instead:
+
+**1. Use `find` to locate elements (no snapshot needed):**
 ```bash
-playwright-cli snapshot --depth=4       # less tokens than full snapshot
-playwright-cli snapshot e34             # snapshot a specific element from shallow
+node scripts/browser.js exec find "Redactar"       # find by text
+node scripts/browser.js exec find "Compose"
+node scripts/browser.js exec find --regex "/sign (in|up)/i"
+node scripts/browser.js exec find "Easy Apply"
+```
+Returns matching elements with refs. Much smaller than a full snapshot.
+
+**2. Use `eval` to check state or extract data (no snapshot needed):**
+```bash
+node scripts/browser.js exec eval "() => document.title"
+node scripts/browser.js exec eval "() => document.querySelector('h1')?.textContent"
+node scripts/browser.js exec eval "() => document.querySelectorAll('tr.zA').length + ' emails'"
 ```
 
-**Search for specific text instead of full snapshot:**
+**3. If you need a snapshot, use `find` first to narrow down, then snapshot a specific element:**
 ```bash
-playwright-cli find "Apply"
-playwright-cli find --regex "/sign (in|up)/i"
-playwright-cli find "Easy Apply"
+node scripts/browser.js exec find "Redactar"       # get the ref
+node scripts/browser.js exec snapshot <ref>        # snapshot just that element
+```
+
+**4. Only use full snapshots on simple pages or when you need to understand the overall structure:**
+```bash
+node scripts/browser.js exec snapshot              # full snapshot (avoid on complex pages)
 ```
 
 **Fill + submit in one command:**
 ```bash
-playwright-cli fill e15 "search term" --submit   # fill + press Enter atomically
+node scripts/browser.js exec fill e15 "search term" --submit   # fill + press Enter atomically
 ```
 
 **Detect errors without snapshots:**
@@ -493,20 +536,21 @@ node scripts/browser.js requests         # check for failed network requests
 
 **Extract data with eval + fetch (avoid UI navigation):**
 ```bash
-playwright-cli eval "(async () => { const r = await fetch('/api/data'); return JSON.stringify(await r.json()) })()"
+node scripts/browser.js exec eval "(async () => { const r = await fetch('/api/data'); return JSON.stringify(await r.json()) })()"
 ```
 
 ## Key patterns
 
-### Always snapshot before interacting
+### Always get fresh refs before interacting
 
-Refs (`[ref=eXXX]`) change after every action (click, fill, navigate, even async updates). Never reuse a ref from a previous snapshot.
+Refs (`[ref=eXXX]`) change after every action (click, fill, navigate, even async updates). Never reuse a ref from a previous snapshot or find.
 
 ```bash
-playwright-cli snapshot           # get fresh refs
-playwright-cli click e42          # use ref from THIS snapshot
-playwright-cli snapshot           # get fresh refs again
-playwright-cli fill e55 "text"    # use new ref
+node scripts/browser.js exec find "Compose"    # get fresh ref
+node scripts/browser.js exec click <ref>       # use ref from THIS find
+# ref is now stale, get a new one
+node scripts/browser.js exec find "To"         # get fresh ref
+node scripts/browser.js exec fill <ref> "text" # use new ref
 ```
 
 ### Wait for page load
@@ -514,8 +558,8 @@ playwright-cli fill e55 "text"    # use new ref
 After `goto` or `click` that triggers navigation, use in-page polling (Rule 2):
 
 ```bash
-playwright-cli goto "https://example.com"
-playwright-cli eval "(async function(){
+node scripts/browser.js goto "https://example.com"
+node scripts/browser.js exec eval "(async function(){
   for (let i = 0; i < 50; i++) {
     if (document.querySelector('[data-loaded]')) return 'ready';
     await new Promise(r => setTimeout(r, 200));
@@ -527,7 +571,7 @@ playwright-cli eval "(async function(){
 For SPA navigation (URL doesn't change but content updates), use `eval` to check:
 
 ```bash
-playwright-cli eval "() => document.querySelector('[data-loaded]') ? 'ready' : 'loading'"
+node scripts/browser.js exec eval "() => document.querySelector('[data-loaded]') ? 'ready' : 'loading'"
 ```
 
 ### Custom components need eval
@@ -536,7 +580,7 @@ Some sites use custom web components (Google Search, LinkedIn tiptap editor, Rea
 
 ```bash
 # If fill doesn't work on a custom input
-playwright-cli eval "(function() {
+node scripts/browser.js exec eval "(function() {
   const el = document.querySelector('[role=textbox]');
   el.innerHTML = 'text';
   el.dispatchEvent(new Event('input', {bubbles: true}));
@@ -545,7 +589,7 @@ playwright-cli eval "(function() {
 
 **React-controlled inputs need native value setter:**
 ```bash
-playwright-cli eval "(function() {
+node scripts/browser.js exec eval "(function() {
   const el = document.querySelector('input');
   const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
   nativeSetter.call(el, 'your value');
@@ -558,7 +602,7 @@ playwright-cli eval "(function() {
 Some buttons (Gmail send, custom UI) require a mousedown -> click -> mouseup sequence:
 
 ```bash
-playwright-cli eval "(function() {
+node scripts/browser.js exec eval "(function() {
   const btn = document.querySelector('div[role=button]');
   btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
   btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
