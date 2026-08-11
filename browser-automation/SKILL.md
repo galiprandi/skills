@@ -439,30 +439,32 @@ node scripts/browser.js exec tab-close 1                       # close tab 1
 
 For the full parallel subagent pattern with named tabs and sessions, see [references/parallel-agents.md](references/parallel-agents.md).
 
-## Session management (parallel subagents)
+## Session management (subagents)
 
-`playwright-cli attach <name>` creates a separate session attached to the same browser, enabling true parallel work (e.g. subagents each with their own active tab).
+**IMPORTANT: parallel browser work is counterproductive.** Tested empirically: running multiple subagents simultaneously on the same browser causes interference (commands execute on the wrong tab, agents fight over the active tab).
+
+**Recommended pattern:** one tab per app, SEQUENTIAL work. Don't run browser subagents in parallel.
 
 ```bash
-# Primary session
-node scripts/browser.js open "https://example.com"
+# Open one tab per app (upfront)
+node scripts/browser.js open "https://mail.google.com" --headless
+node scripts/browser.js tab-new "https://www.linkedin.com" --name linkedin
 
-# Attach a new session (each gets independent active tab)
-node scripts/browser.js attach --session worker-1
+# Run subagent A (gmail) — wait for it to finish
+node scripts/browser.js exec eval "..." --tab default
 
-# Run commands in the worker session
-node scripts/browser.js exec snapshot --session worker-1
-node scripts/browser.js exec goto "https://other.com" --session worker-1
+# Run subagent B (linkedin) — only after A is done
+node scripts/browser.js exec eval "..." --tab linkedin
 
-# Detach when done
-node scripts/browser.js detach --session worker-1
+# Cleanup
+node scripts/browser.js close-all
 ```
 
-**When to use sessions vs tabs:**
-- Tabs: sequential work on multiple sites (one agent switching between them) — reliable
-- Sessions: parallel work (multiple subagents, each with its own active tab) — enables true parallelism
+**When to use what:**
+- Named tabs (`--tab gmail`): one agent working across multiple apps, sequentially — RECOMMENDED
+- Sessions (`--session worker-1`): only if you truly need parallel browser access — AVOID, causes interference
 
-See [references/parallel-agents.md](references/parallel-agents.md) for the full parallel subagent pattern.
+See [references/parallel-agents.md](references/parallel-agents.md) for the full explanation of why parallel doesn't work and the sequential pattern.
 
 ## State persistence
 
