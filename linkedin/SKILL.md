@@ -1,27 +1,27 @@
 ---
 name: linkedin
-description: Automate LinkedIn with playwright-cli. Covers messaging (send text + attachments via Voyager endpoints), bulk inbox fetch, profile navigation, job search, and Easy Apply. Use when sending LinkedIn messages, reading inbox, applying to jobs, or extracting profile data. Requires browser-core skill for setup.
+description: Automate LinkedIn with playwright-cli. Covers messaging (send text + attachments via Voyager endpoints), bulk inbox fetch, profile navigation, job search, Easy Apply, connection requests, notifications, saved jobs, and the tiptap editor fix. Use when sending LinkedIn messages, reading inbox, applying to jobs, connecting with people, or extracting profile data. Requires browser-core skill for setup.
 ---
 
 # LinkedIn Automation
 
 Automate LinkedIn via `playwright-cli` using a mix of UI interactions and internal Voyager API endpoints. The API endpoints run inside `page.evaluate()` so they inherit the browser's cookies automatically.
 
-**Prerequisite:** Read the `browser-core` skill first for profile-dir setup and core commands.
+**Prerequisite:** Read the `browser-core` skill first for profile-dir setup, the safe wrapper, and golden rules.
 
 ## Setup
 
 ```bash
 # Open LinkedIn (headless if already logged in, headed for login)
-playwright-cli open "https://www.linkedin.com" --persistent --profile ./.browser-profile --headed
+node scripts/browser.js open "https://www.linkedin.com" --headed
 
 # If login needed: user logs in manually, then save state
-playwright-cli state-save ./.browser-profile/auth-state.json
-playwright-cli close
+node scripts/browser.js save-state
+node scripts/browser.js close
 
 # Next sessions: load state and go headless
-playwright-cli open "https://www.linkedin.com" --persistent --profile ./.browser-profile
-playwright-cli state-load ./.browser-profile/auth-state.json
+node scripts/browser.js open "https://www.linkedin.com"
+node scripts/browser.js load-state
 ```
 
 ## Messaging
@@ -32,15 +32,13 @@ One HTTP call returns ALL conversations with participants, unread count, last me
 
 ```bash
 # Navigate to messaging first (loads required cookies)
-playwright-cli goto "https://www.linkedin.com/messaging/"
-sleep 3
+node scripts/browser.js goto "https://www.linkedin.com/messaging/"
 
 # Fetch all conversations via Voyager GraphQL
 playwright-cli eval "(function(){
   var csrf = document.cookie.split('; ').find(function(c){return c.indexOf('JSESSIONID=')===0});
   csrf = csrf ? csrf.split('=')[1].replace(/\"/g,'') : '';
 
-  // Extract self profile ID from page HTML
   var selfId = (document.documentElement.outerHTML.match(/ACoAA[A-Za-z0-9_-]{5,}/g)||[]).sort(function(a,b){
     return document.documentElement.outerHTML.split(a).length - document.documentElement.outerHTML.split(b).length;
   }).pop();
@@ -74,7 +72,48 @@ playwright-cli eval "(function(){
 - `lastMessage.isFromSelf === true` → waiting for reply, no action needed
 - `lastActivityAt` → compare against your last review timestamp to detect new activity
 
-### Send text-only message (new conversation)
+### Open a conversation by name (UI)
+
+```
+URL: https://www.linkedin.com/messaging/
+Strategy: eval click on <li> by person name
+Verify: msg-s-message-list-container exists + <h2> matches name
+```
+
+```bash
+node scripts/browser.js goto "https://www.linkedin.com/messaging/"
+# Wait for conversation list
+playwright-cli eval "(async function(){
+  for (let i = 0; i < 50; i++) {
+    if (document.querySelector('.msg-conversation-listitem')) return 'ready';
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return 'timeout';
+})()"
+
+# Click conversation by name (atomic eval, browser-core Rule 1)
+playwright-cli eval "(function(){
+  const items = document.querySelectorAll('.msg-conversation-listitem');
+  for (const item of items) {
+    const name = item.querySelector('h3, .msg-conversation-card__content');
+    if (name && name.textContent.includes('PERSON_NAME')) {
+      item.click();
+      return 'clicked';
+    }
+  }
+  return 'not_found';
+})()"
+
+# Verify (browser-core Rule 5: check DOM, not URL)
+playwright-cli eval "(function(){
+  const panel = document.querySelector('.msg-s-message-list-container');
+  const header = document.querySelector('h2');
+  if (panel && header && header.textContent.includes('PERSON_NAME')) return 'ok';
+  return 'not_loaded';
+})()"
+```
+
+### Send text-only message (new conversation, via Voyager API)
 
 ```bash
 playwright-cli eval "(function(){
@@ -116,14 +155,14 @@ playwright-cli eval "(function(){
 
 Returns `conversationUrn` containing the thread ID (`2-XXXXX==`) for future replies.
 
-### Send text-only reply (existing conversation)
+### Send text-only reply (existing conversation, via Voyager API)
 
 ```bash
 playwright-cli eval "(function(){
   var csrf = document.cookie.split('; ').find(function(c){return c.indexOf('JSESSIONID=')===0});
   csrf = csrf ? csrf.split('=')[1].replace(/\"/g,'') : '';
 
-  var THREAD_ID = '2-XXXXX==';  // from conversationUrn
+  var THREAD_ID = '2-XXXXX==';
   var MESSAGE_TEXT = 'your reply';
 
   var body = {
@@ -151,12 +190,59 @@ playwright-cli eval "(function(){
 })()"
 ```
 
+### Send message via UI (tiptap editor fix, validated 2026-08-10)
+
+The composer is `div[contenteditable]`. LinkedIn uses ProseMirror/tiptap which ignores `innerText`, `textContent`, `execCommand`, `playwright-cli fill`, and `playwright-cli type`. The only reliable way to trigger the framework's internal state and enable the Send button is to dispatch a `beforeinput` event with `inputType: 'insertFromPaste'` after setting `innerHTML`:
+
+```bash
+# 1. Focus the composer
+playwright-cli eval "document.querySelector('div.msg-form__contenteditable').focus()"
+
+# 2. Set innerHTML with <p> tags and dispatch beforeinput with insertFromPaste
+playwright-cli eval "(function(){
+  var el = document.querySelector('div.msg-form__contenteditable');
+  el.focus();
+  var paragraphs = ['Line 1', 'Line 2', '', 'Line 4']; // '' for blank lines
+  var html = paragraphs.map(function(p) { return '<p>' + p + '</p>'; }).join('');
+  el.innerHTML = html;
+  el.dispatchEvent(new InputEvent('beforeinput', {
+    bubbles: true, cancelable: true,
+    inputType: 'insertFromPaste',
+    data: paragraphs.join('\\n'),
+    dataTransfer: new DataTransfer()
+  }));
+  el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
+  return el.textContent.substring(0, 50);
+})()"
+
+# 3. Wait for Send button to be enabled
+playwright-cli eval "(function(){
+  var btn = document.querySelector('button[type=submit].msg-form__send-button');
+  return btn && !btn.disabled ? 'enabled' : 'disabled';
+})()"
+
+# 4. Click Send (via eval, not ref)
+playwright-cli eval "document.querySelector('button[type=submit].msg-form__send-button').click()"
+
+# 5. Verify: check that the message text appears in the thread
+playwright-cli eval "document.body.innerText.includes('MESSAGE_SNIPPET')"
+```
+
+**What does NOT work** (tested 2026-08-10):
+- `el.innerText = text` + `InputEvent('input')` — Send stays disabled
+- `el.textContent = text` + `InputEvent('input')` — Send stays disabled
+- `document.execCommand('insertText', false, text)` — Send stays disabled
+- `playwright-cli fill <ref> <text>` — Send stays disabled
+- `playwright-cli type <text>` (after click) — Send stays disabled
+
+**What DOES work:**
+- `el.innerHTML = '<p>...</p>'` + `InputEvent('beforeinput', {inputType: 'insertFromPaste'})` — Send enables
+
 ### Send message with attachment (dash endpoint)
 
 This is the only way to send attachments via endpoint. The attachment goes in `renderContentUnions`, NOT in `attachments` (which is silently dropped).
 
 ```bash
-# Step 1: Register upload + upload binary + send message (all in one eval)
 playwright-cli eval "(function(){
   var csrf = document.cookie.split('; ').find(function(c){return c.indexOf('JSESSIONID=')===0});
   csrf = csrf ? csrf.split('=')[1].replace(/\"/g,'') : '';
@@ -169,7 +255,6 @@ playwright-cli eval "(function(){
   var MESSAGE_TEXT = 'message with attachment';
   var CONV_URN = 'urn:li:msg_conversation:(urn:li:fsd_profile:' + selfId + ',' + THREAD_ID + ')';
 
-  // File content as base64 (encode before passing to eval)
   var FILE_B64 = '<base64_encoded_file>';
   var FILE_NAME = 'document.pdf';
   var FILE_MIME = 'application/pdf';
@@ -181,7 +266,6 @@ playwright-cli eval "(function(){
   var fileBlob=b64ToBlob(FILE_B64,FILE_MIME);
   var fileSize=fileBlob.size;
 
-  // Register upload
   return fetch('/voyager/api/voyagerVideoDashMediaUploadMetadata?action=upload',{
     method:'POST',
     headers:{'accept':'application/vnd.linkedin.normalized+json+2.1','x-restli-protocol-version':'2.0.0','x-li-lang':'en_US','csrf-token':csrf,'content-type':'application/json'},
@@ -189,7 +273,6 @@ playwright-cli eval "(function(){
   }).then(function(r){return r.json()}).then(function(reg){
     var uploadUrl=reg.data.value.singleUploadUrl;
     var mediaUrn=reg.data.value.urn;
-    // Upload binary
     return fetch(uploadUrl,{method:'PUT',headers:{'content-type':FILE_MIME},body:fileBlob}).then(function(){
       return new Promise(function(res){setTimeout(function(){res({mediaUrn:mediaUrn})},2000)});
     });
@@ -228,9 +311,7 @@ playwright-cli eval "(function(){
 If the endpoint flow fails (LinkedIn changes schema), use the UI:
 
 ```bash
-# Navigate to the conversation thread
-playwright-cli goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/"
-sleep 3
+node scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/"
 playwright-cli snapshot
 
 # Find "Attach a file" button ref, click it
@@ -238,7 +319,6 @@ playwright-cli click <attach_ref>
 
 # Upload file (file chooser opens automatically)
 playwright-cli upload /path/to/file.pdf
-sleep 3
 
 # Fill message and send
 playwright-cli snapshot
@@ -249,16 +329,242 @@ playwright-cli click <send_ref>
 
 **Attach buttons only appear when a conversation is open** (not in the messaging list view).
 
+## Connection requests (invites)
+
+### Connect with note
+
+The Connect button can be in: profile page, search results, or a dropdown. The modal varies (`connect-with-note`, `send-invite`).
+
+```bash
+# 1. Navigate to profile
+node scripts/browser.js goto "https://www.linkedin.com/in/<username>/"
+
+# 2. Find Connect button (may be in "More" dropdown)
+playwright-cli eval "(function(){
+  const btns = document.querySelectorAll('button, [role=\"button\"]');
+  for (const b of btns) {
+    if (b.textContent.trim() === 'Connect') { b.click(); return 'clicked'; }
+  }
+  return 'not_found';
+})()"
+
+# 3. If "Add a note" appears, click it
+playwright-cli eval "(function(){
+  const links = document.querySelectorAll('a, button');
+  for (const l of links) {
+    if (l.textContent.includes('Add a note')) { l.click(); return 'clicked'; }
+  }
+  return 'not_found';
+})()"
+
+# 4. Fill the note textarea
+playwright-cli eval "(async function(){
+  for (let i = 0; i < 15; i++) {
+    if (document.querySelector('textarea')) return 'ready';
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return 'timeout';
+})()"
+playwright-cli eval "(function(){
+  const ta = document.querySelector('textarea');
+  ta.value = 'YOUR NOTE TEXT';
+  ta.dispatchEvent(new InputEvent('input', { bubbles: true }));
+  return 'filled';
+})()"
+
+# 5. Click Send
+playwright-cli eval "(function(){
+  const btns = document.querySelectorAll('button[type=\"submit\"], button');
+  for (const b of btns) {
+    if (b.textContent.includes('Send') && !b.disabled) { b.click(); return 'sent'; }
+  }
+  return 'not_found';
+})()"
+```
+
+### Invite without note (URL pattern)
+
+```
+URL: https://www.linkedin.com/preload/custom-invite/?vanityName=<vanity>
+```
+- The vanity is the slug from the profile URL (`/in/<vanity>/`)
+- For special characters (á, é, ç, ñ) use URL encoding (`%C3%A1`, `%C3%A9`, `%C3%A7`, `%C3%B1`)
+- The "Add a note to your invitation" dialog appears automatically
+- Search for the "Send without a note" button and click it
+
+```bash
+node scripts/browser.js goto "https://www.linkedin.com/preload/custom-invite/?vanityName=<vanity>"
+playwright-cli eval "(function(){
+  const btns = document.querySelectorAll('button, [role=\"button\"]');
+  for (const b of btns) {
+    if (b.textContent.includes('Send without a note')) { b.click(); return 'sent'; }
+  }
+  return 'not_found';
+})()"
+```
+
+**Custom note limit:** LinkedIn has a weekly limit for custom notes. When exhausted, send invites without a note. Don't retry with a note.
+
+**3rd+ connections:** Can't send invite. Mark as "no invite possible" and move to the next. Don't waste time trying workarounds.
+
+## Notifications
+
+```
+URL: https://www.linkedin.com/notifications/
+Strategy: parse article "Notification" elements via eval
+```
+
+```bash
+node scripts/browser.js goto "https://www.linkedin.com/notifications/"
+playwright-cli eval "(async function(){
+  for (let i = 0; i < 50; i++) {
+    if (document.querySelector('article')) return 'ready';
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return 'timeout';
+})()"
+
+playwright-cli eval "(function(){
+  const articles = document.querySelectorAll('article');
+  return JSON.stringify(Array.from(articles).map(a => ({
+    text: a.innerText.substring(0, 200),
+    link: a.querySelector('a[href]')?.href || null,
+  })));
+})()"
+```
+
+## Saved jobs / job tracker
+
+```
+URL: https://www.linkedin.com/jobs-tracker/?stage=saved
+Redirect: /my-items/saved-jobs/ -> /jobs-tracker/
+Tabs: Saved, In Progress (dropdown: Draft, Clicked apply), Applied, Interview, Archived
+```
+
+```bash
+node scripts/browser.js goto "https://www.linkedin.com/jobs-tracker/?stage=saved"
+playwright-cli eval "(async function(){
+  for (let i = 0; i < 50; i++) {
+    if (document.querySelector('main')) return 'ready';
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return 'timeout';
+})()"
+
+playwright-cli eval "(function(){
+  const cards = document.querySelectorAll('main a[href*=\"/jobs/view/\"]');
+  return JSON.stringify(Array.from(cards).map(c => {
+    const ps = c.querySelectorAll('p');
+    return {
+      role: ps[0]?.textContent || '',
+      companyLocation: ps[1]?.textContent || '',
+      url: c.href,
+    };
+  }));
+})()"
+```
+
+## Job search
+
+### Search jobs with Easy Apply
+
+```
+URL: https://www.linkedin.com/jobs/search/?keywords=<kw>&location=<loc>&f_AL=true&f_WT=2&sortBy=DD
+Easy Apply badge: generic "Easy Apply" in job list cards (not just detail panel)
+```
+
+URL parameters:
+- `f_AL=true` = Easy Apply only
+- `f_WT=2` = Remote only
+- `sortBy=DD` = sorted by date (most recent first)
+- Keywords with OR (URL encoded): `%22<Role1>%22%20OR%20%22<Role2>%22`
+
+```bash
+node scripts/browser.js goto "https://www.linkedin.com/jobs/search/?keywords=<keywords>&location=<loc>&f_AL=true&f_WT=2&sortBy=DD"
+playwright-cli eval "(async function(){
+  for (let i = 0; i < 50; i++) {
+    if (document.querySelector('main')) return 'ready';
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return 'timeout';
+})()"
+
+playwright-cli eval "(function(){
+  const cards = document.querySelectorAll('main .job-card-container, [data-job-id]');
+  return JSON.stringify(Array.from(cards).map(c => ({
+    title: c.querySelector('h3, .job-title')?.textContent || '',
+    company: c.querySelector('h4, .company-name')?.textContent || '',
+    easyApply: c.textContent.includes('Easy Apply'),
+    url: c.querySelector('a[href]')?.href || '',
+  })));
+})()"
+```
+
+### Post search for job openings (content search)
+
+**Queries that work (ordered by effectiveness):**
+
+1. `"<Role>" "hiring" LATAM` in `search/results/content/` with `sortBy="date_posted"` and Posts filter. Most productive query. Returns posts from recruiters and hiring managers with visible contact emails.
+2. `"<Role>" "<City>" "hiring"` for geo-specific searches. Returns local posts with direct emails.
+3. `"<Role in user's language>" "buscamos"` (or equivalent in the user's language) for searches in the local language.
+4. `#hiring + <Role> keywords` (hashtags). LinkedIn doesn't support OR between hashtags. Simplify to one hashtag + keywords.
+
+**Queries that don't work:**
+- Multiple hashtags with OR: LinkedIn treats them as literal text
+- Very long combinations with many ANDs: returns 0 results or irrelevant results
+- Niche hashtags: low volume, almost no results
+
+**Post extraction pattern:**
+1. Go to `search/results/content/?keywords=...&sortBy="date_posted"`
+2. Snapshot -> grep `button.*post by` for authors
+3. grep `url.*in/` for profile URLs (3 repeated URLs per author)
+4. grep `text:.*<Role keywords>|text:.*hiring` for post content
+5. grep `mailto:` to extract direct contact emails
+6. Scroll with `window.scrollBy(0, 5000)` + snapshot for more results
+
+## Easy Apply flow
+
+**Repeatable pattern:**
+
+1. Snapshot of the job list -> grep `strong.*:` for titles
+2. Click the job title (ref from the `strong`)
+3. Snapshot -> grep `Easy Apply to` for the button
+4. Click Easy Apply -> dialog opens
+5. Loop: search for `Continue to next step` | `Review your application` | `Submit application` with grep, click
+6. If there's a `textbox` with `*` (required), fill and continue
+7. If there's a `combobox` with `Select an option`, select the appropriate option
+8. If there are `radio` groups with `Required`, click the generic label (not the radio input)
+9. If there's `Please make a selection` (alert), a radio is missing selection
+10. Progress bar: 0% -> 25% -> 33% -> 50% -> 67% -> 75% -> 100% (varies per form)
+11. At 100%: `Submit application` -> click -> `Your application was sent to <company>!`
+
+**Common question types:**
+- Years of experience with [tech]: fill from your data source
+- Language level: fill from your data source
+- Current location: fill from your data source
+- Salary expectation: fill from your data source
+- Consent/privacy: always accept
+- Diversity/accessibility: fill from your data source
+
+**If a required field is missing data:** stop and ask the user. Never invent values.
+
+**Common Easy Apply pitfalls:**
+- Some companies have extremely long forms (8+ steps). Patience, fill everything.
+- Some forms have radios without a direct ref. Click the `generic` label that wraps the text ("Yes", "No").
+- Some forms have `combobox` that appear selected but aren't. Verify with `option.*selected`.
+- The "Continue" button may not advance if there are errors. Always grep `Please make a selection` | `Please enter a valid answer` | `Required` after each click.
+- Some forms open a file chooser when clicking "Attach". Use `playwright-cli upload <path>` immediately.
+
+**Captcha:** if a captcha appears, stop and ask the user. Never attempt to solve programmatically.
+
 ## Profile navigation
 
 ### Find someone's profile ID
 
 ```bash
-playwright-cli goto "https://www.linkedin.com/in/<username>/"
-sleep 3
+node scripts/browser.js goto "https://www.linkedin.com/in/<username>/"
 playwright-cli eval "(function(){
   var ids = document.documentElement.outerHTML.match(/ACoAA[A-Za-z0-9_-]{5,}/g) || [];
-  // Most frequent ID is usually the profile owner (not self)
   var counts = {};
   ids.forEach(function(id){counts[id] = (counts[id]||0) + 1});
   return Object.entries(counts).sort(function(a,b){return b[1]-a[1]})[0][0];
@@ -268,22 +574,8 @@ playwright-cli eval "(function(){
 ### Navigate to a conversation by thread ID
 
 ```bash
-playwright-cli goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/"
-sleep 3
-playwright-cli snapshot
+node scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/"
 ```
-
-## Tiptap editor (compose message in UI)
-
-LinkedIn uses a tiptap (ProseMirror) contenteditable editor for messages.
-
-- **`fill <ref> "text"` works** for writing into tiptap. This is the reliable method.
-- **`type "text"` without a ref does NOT work** — tiptap's contenteditable doesn't receive it.
-- **`type` with multiline text fails** — CLI parses newlines as multiple arguments.
-- **Snapshot does NOT show typed text inline** — tiptap paragraphs appear empty. Verify with:
-  ```bash
-  playwright-cli eval "() => document.querySelector('[contenteditable=true]')?.innerText?.substring(0,300)"
-  ```
 
 ## Key headers for Voyager API
 
@@ -310,6 +602,10 @@ csrf = csrf ? csrf.split('=')[1].replace(/"/g,'') : '';
 - **Don't** reuse refs after navigating or clicking — take a new snapshot
 - **Don't** try to log in programmatically — open headed and let the user log in
 - **Don't** send messages without user approval if they're real outreach
+- **Don't** use `innerText` or `textContent` for the tiptap editor — use `innerHTML` + `beforeinput` with `insertFromPaste`
+- **Don't** retry captchas in a loop — stop and ask the user
+- **Don't** try to connect with 3rd+ connections — they can't be invited
+- **Don't** retry custom notes when the weekly limit is exhausted — send without a note
 
 ## API reference
 

@@ -44,47 +44,64 @@ AI Skills are specialized knowledge modules that teach your AI assistant how to 
 
 ### Browser Core
 
-**browser-core** - Control a dedicated browser via playwright-cli for web automation. Covers profile-dir setup, tab parallelization, snapshots, eval, and all core commands.
+**browser-core** - Control a dedicated browser via playwright-cli for web automation. Includes a safe wrapper script (lockfile, health-check, ref-count, parallel sessions), 6 golden rules for reliability, tab parallelization, snapshots, eval, and all core commands. Site-specific tips live in separate skills.
 
 **What it helps with:**
-- Browser automation with persistent profiles
-- Tab management for parallel work across sites
-- Page inspection (snapshot, find, eval)
-- Network inspection and debugging
-- Auth state persistence
+- Browser automation with persistent profiles (never commit the profile dir)
+- Safe wrapper that prevents race conditions and zombie sessions
+- Tab and session management for parallel subagent work
+- 6 validated golden rules (eval > refs, in-page polling > sleep, batch operations, etc.)
+- Token-efficient patterns (shallow snapshot, find, batch eval)
+- Auth state persistence across browser restarts
+- Profile management, headed/headless workflow, config via file or env var
 
 **Perfect for:**
 - Automating web apps that require login
 - Scraping data from authenticated sites
 - Testing web flows
 - Any task needing a real browser session
+- Building other browser-based skills on top (linkedin, gmail, etc.)
+
+**Includes:**
+- `scripts/browser.js` — safe wrapper (copy to your repo's `scripts/` dir)
+- `references/parallel-agents.md` — subagent pattern with sessions and ref-count
+- `references/profile-management.md` — profile dir, auth state, headed/headless
+- `references/playwright-cli.md` — full command reference
 
 ### LinkedIn
 
-**linkedin** - Automate LinkedIn with playwright-cli. Covers messaging (text + attachments via Voyager endpoints), bulk inbox fetch, profile navigation, and job search.
+**linkedin** - Automate LinkedIn with playwright-cli. Covers messaging (text + attachments via Voyager endpoints), bulk inbox fetch, profile navigation, job search, Easy Apply, connection requests, notifications, saved jobs, and the tiptap editor fix.
 
 **What it helps with:**
-- Sending LinkedIn messages without opening the UI
+- Sending LinkedIn messages without opening the UI (Voyager API)
 - Bulk inbox fetch via Voyager GraphQL (all conversations in one call)
 - Sending messages with file attachments via dash endpoint
-- Extracting profile IDs and navigating threads
-- Tiptap editor tips for compose
+- Connection requests with and without notes
+- Reading notifications and saved jobs
+- Job search with Easy Apply filter
+- Easy Apply flow (step-by-step pattern with common pitfalls)
+- Tiptap editor fix (beforeinput + insertFromPaste to enable Send button)
 
 **Perfect for:**
 - Job search automation
 - Recruiter outreach workflows
 - LinkedIn inbox management
+- Connection request automation
 
 ### Gmail
 
-**gmail** - Automate Gmail with playwright-cli. Covers reading inbox via Atom feed, composing emails, searching, archiving, labeling, and keyboard shortcuts.
+**gmail** - Automate Gmail with playwright-cli. Covers reading inbox via Atom feed, composing emails (with validated selectors), replying, searching, archiving, labeling, keyboard shortcuts, and bulk delete.
 
 **What it helps with:**
 - Quick inbox checks via Atom feed (one HTTP call)
-- Composing and sending emails
+- Composing emails with native value setter (React-controlled inputs)
+- Replying to emails (different selectors from compose: contenteditable vs textarea)
+- Sending with mousedown -> click -> mouseup sequence (plain .click() is unreliable)
+- Bulk delete with proper event sequence
 - Search with Gmail operators
 - Archive, label, star, delete via keyboard shortcuts
 - Multi-account navigation
+- SMTP alternative (nodemailer snippet, no browser needed)
 
 **Perfect for:**
 - Email automation workflows
