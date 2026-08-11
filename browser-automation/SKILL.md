@@ -21,6 +21,8 @@ Before automating a specific web app, **read the corresponding guide** in `apps/
 
 **Check for existing scripts first:** the consuming repo may already have scripts that wrap common operations (e.g. `scripts/linkedin-inbox.js`, `scripts/send-email.js`). Run `ls scripts/` to see what's available. **Prefer existing scripts over manual UI automation** — they're faster, more reliable, and handle edge cases. The app guides list common scripts to look for.
 
+**NEVER edit scripts to hardcode personal data.** Scripts should auto-detect values at runtime or accept them as arguments. If a script has a placeholder like `<YOUR_FSD_PROFILE_ID>`, it's a bug — fix the script to auto-detect, don't replace the placeholder with a real value. Hardcoding personal data in tracked files violates repo portability.
+
 **If the app you need is not listed:** use the generic patterns in this file. Consider creating a new `apps/<name>.md` guide after validating your approach.
 
 ## Setup
@@ -378,41 +380,51 @@ node scripts/browser.js exec pdf --filename=page.pdf # save page as PDF
 
 ## Tab management (parallelization)
 
-Tabs let you work on multiple sites simultaneously in one browser instance.
+There are TWO tab systems. Don't mix them:
+
+### 1. Wrapper named tabs (RECOMMENDED — use `--tab` flag)
+
+The wrapper manages named tabs. You create a tab with a name, then target it with `--tab <name>` on any command. No need to tab-select before each command.
 
 ```bash
-node scripts/browser.js exec tab-new [url]           # create new tab
-node scripts/browser.js exec tab-list                # list all tabs with indices
-node scripts/browser.js exec tab-select <index>      # switch to tab by index
-node scripts/browser.js exec tab-close [index]       # close tab (current if no index)
+# Create named tabs (from the wrapper, not exec)
+node scripts/browser.js tab-new "https://gmail.com" --name gmail
+node scripts/browser.js tab-new "https://linkedin.com" --name linkedin
+
+# Run commands on a specific tab WITHOUT switching to it first
+node scripts/browser.js exec snapshot --tab gmail
+node scripts/browser.js exec eval "() => document.title" --tab linkedin
+node scripts/browser.js exec find "Compose" --tab gmail
+
+# List named tabs
+node scripts/browser.js tab-list
+
+# Close a named tab
+node scripts/browser.js tab-close gmail
 ```
 
-**Parallelization pattern:** open one tab per site, switch between them with `tab-select`.
+**Key advantage:** `--tab <name>` targets the tab directly. You don't need to `tab-select` before each command. The wrapper handles switching automatically.
+
+### 2. Playwright-cli index tabs (fallback — use tab-select)
+
+Playwright-cli manages tabs by index (0, 1, 2...). You must `tab-select` before each command.
 
 ```bash
-playwright-cli open "https://gmail.com"
-node scripts/browser.js exec tab-new "https://linkedin.com"
-node scripts/browser.js exec tab-new "https://discord.com"
-
-# Work on Gmail (tab 0)
-node scripts/browser.js exec tab-select 0
-node scripts/browser.js exec snapshot
-
-# Switch to LinkedIn (tab 1)
-node scripts/browser.js exec tab-select 1
-node scripts/browser.js exec snapshot
-
-# Close when done
-node scripts/browser.js exec tab-close 1
+node scripts/browser.js exec tab-new "https://linkedin.com"   # creates tab at next index
+node scripts/browser.js exec tab-list                          # shows indices
+node scripts/browser.js exec tab-select 1                      # switch to tab 1
+node scripts/browser.js exec snapshot                          # runs on current tab (1)
+node scripts/browser.js exec tab-close 1                       # close tab 1
 ```
 
-**Tab tips:**
-- Tab 0 is the main tab. Don't close it while other tabs are open.
-- `tab-list` shows `(current)` next to the active tab.
-- Tabs share the same browser profile (cookies, localStorage).
-- Close duplicate tabs when finished to save resources.
+**Don't use `--tab 1` with the wrapper** — the wrapper expects a NAME (from `tab-new --name`), not an index. If you didn't create a named tab, use `tab-select` instead.
 
-For the wrapper's named tab management (more reliable for parallel work), see [references/parallel-agents.md](references/parallel-agents.md).
+### Which to use?
+
+- **Named tabs (`--tab gmail`):** for parallel work across sites. Each command targets its tab directly. No switching needed.
+- **Index tabs (`tab-select 0`):** for sequential work where you manually switch between tabs.
+
+For the full parallel subagent pattern with named tabs and sessions, see [references/parallel-agents.md](references/parallel-agents.md).
 
 ## Session management (parallel subagents)
 
