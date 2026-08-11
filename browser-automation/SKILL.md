@@ -16,6 +16,8 @@ Before automating a specific web app, **read the corresponding guide** in `apps/
 |---|---|---|
 | Gmail | `apps/gmail.md` | Before any Gmail operation (compose, reply, read inbox, search, delete) |
 | LinkedIn | `apps/linkedin.md` | Before any LinkedIn operation (messaging, connections, jobs, Easy Apply, notifications) |
+| Microsoft Teams | `apps/teams.md` | Before any Teams operation (send/delete messages via chatsvc API, token extraction) |
+| Jira | `apps/jira.md` | Before any Jira operation (create issue, add comment, transition status) |
 
 **How to load:** read the file with your read tool. Example: `read .agents/skills/browser-automation/apps/gmail.md`
 
@@ -639,6 +641,101 @@ node scripts/browser.js exec eval "(function() {
 })()"
 ```
 
+## Token extraction from browser localStorage (generic pattern)
+
+Many web apps store auth tokens (JWT, OAuth, Cognito) in `localStorage`. You can extract them at runtime to call the app's internal API directly, bypassing the UI. This is faster and more reliable than UI automation for messaging, data retrieval, and status changes.
+
+**Generic pattern:**
+
+```bash
+# 1. Navigate to the app (ensures localStorage is populated)
+node scripts/browser.js goto "https://app.example.com"
+
+# 2. Extract token by searching localStorage keys
+node scripts/browser.js exec eval "(function(){
+  const keys = Object.keys(localStorage);
+  // Look for keys containing the app's domain or 'token'/'access'
+  const k = keys.find(k => k.includes('example.com') && k.includes('token'));
+  if (!k) return JSON.stringify({error: 'no token found'});
+  const v = JSON.parse(localStorage.getItem(k));
+  return JSON.stringify({token: v.secret || v.accessToken || v.access_token});
+})()"
+
+# 3. Parse JWT payload (if token is a JWT) for user info
+node scripts/browser.js exec eval "(function(){
+  const token = '<extracted_token>';
+  const payload = JSON.parse(atob(token.split('.')[1]));
+  return JSON.stringify({oid: payload.oid, name: payload.name, email: payload.email});
+})()"
+```
+
+**Base64 extraction trick (avoids JSON escaping issues):**
+
+When localStorage values contain complex JSON with nested quotes, extract via base64:
+
+```bash
+node scripts/browser.js exec eval "btoa(JSON.stringify(Object.fromEntries(Object.entries(localStorage))))"
+# Then decode locally: echo '<base64>' | base64 -d | jq
+```
+
+**Apps known to use localStorage tokens:**
+- **Teams:** `ic3.teams.office.com` + `accesstoken` key (fallback: `chatsvcagg.teams.microsoft.com`)
+- **Cognito-based apps:** `access_token`, `refresh_token`, `token_type` keys
+- **Custom portals:** `@user`, `authToken`, or app-prefixed keys
+
+**Token refresh pattern (Cognito/AWS):**
+
+If a token has a `refresh_token`, use it to get a fresh access token without re-opening the browser:
+
+```bash
+curl -X POST "https://cognito-idp.<region>.amazonaws.com/" \
+  -H "Content-Type: application/x-amz-json-1.1" \
+  -H "X-Amz-Target: AWSCognitoIdentityProviderService.InitiateAuth" \
+  -d '{"AuthFlow":"REFRESH_TOKEN_AUTH","ClientId":"<client_id>","AuthParameters":{"REFRESH_TOKEN":"<refresh_token>"}}'
+```
+
+**Gotchas:**
+- Tokens expire (typically 1 hour). Re-extract if you get 401.
+- The token from one subdomain may not work for another API endpoint. Try alternative keys.
+- JWT `oid` may differ between token sources. Use the one that matches the API you're calling.
+
+## API request capture (reverse engineering)
+
+When an app's internal API is undocumented, capture network requests to discover endpoints:
+
+```javascript
+// capture-requests.js — intercept POST/PUT requests
+const { chromium } = require('playwright');
+(async () => {
+  const browser = await chromium.launchPersistentContext('.browser-profile', {
+    headless: false,
+    args: ['--disable-blink-features=AutomationControlled'],
+  });
+  const page = await browser.newPage();
+  page.on('request', (req) => {
+    if (['POST', 'PUT', 'PATCH'].includes(req.method()) &&
+        (req.url().includes('api') || req.url().includes('message') || req.url().includes('chat'))) {
+      console.log('URL:', req.url());
+      console.log('Method:', req.method());
+      console.log('Headers:', JSON.stringify(req.headers(), null, 2));
+      console.log('Body:', req.postData());
+    }
+  });
+  await page.goto('https://app.example.com', { waitUntil: 'networkidle' });
+  console.log('App loaded. Perform the action you want to capture in the UI...');
+  process.stdin.resume();
+  process.stdin.on('data', async () => {
+    await browser.close();
+    process.exit(0);
+  });
+})();
+```
+
+This pattern works for any web app. Use it when:
+- The app has no public API documentation
+- You need to automate an action not covered by existing scripts
+- The API has changed and existing scripts break
+
 ## Anti-patterns
 
 - **Don't** reuse refs across snapshots
@@ -672,6 +769,8 @@ When automating a specific web app, load the corresponding guide for validated s
 |---|---|---|
 | Gmail | [apps/gmail.md](apps/gmail.md) | Atom feed, compose (native value setter), reply (contenteditable), search operators, keyboard shortcuts, bulk delete, SMTP alternative |
 | LinkedIn | [apps/linkedin.md](apps/linkedin.md) | Voyager API messaging, bulk inbox, tiptap editor fix, connection requests, notifications, saved jobs, Easy Apply, post search |
+| Microsoft Teams | [apps/teams.md](apps/teams.md) | chatsvc API (send/delete messages), token extraction from localStorage (ic3 + chatsvcagg fallback), chatId formats, UI fallback, request capture pattern |
+| Jira | [apps/jira.md](apps/jira.md) | Create issue (form fill + snapshot before submit), custom dropdowns, add comment, transition status, SSO login |
 
 **When to load an app guide:** when the agent needs to interact with that specific app (read inbox, send message, apply to job, etc.). The core skill (this file) is enough for generic browser operations. The app guides are loaded on demand to save tokens.
 
