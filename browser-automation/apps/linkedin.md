@@ -82,13 +82,45 @@ playwright-cli eval "(function(){
 - `lastMessage.isFromSelf === true` → waiting for reply, no action needed
 - `lastActivityAt` → compare against your last review timestamp to detect new activity
 
-### Open a conversation by name (UI)
+### Open a conversation (SAFE: by thread ID)
 
+**This is the only safe way to open a conversation for sending.** Navigate directly to the thread URL. Never open `/messaging/` and click a name in the sidebar — LinkedIn redirects to the last active thread, and sidebar clicks can be intercepted by the global nav header or search overlay, leaving the composer attached to the wrong thread.
+
+**How to get the thread ID:**
+1. Use the bulk inbox fetch above to get all conversations with their thread IDs and participant names
+2. Match the participant name to find the thread ID (`2-XXXXX==`)
+
+```bash
+# Navigate directly to the thread by ID
+node scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/"
+
+# Wait for the conversation to load
+playwright-cli eval "(async function(){
+  for (let i = 0; i < 50; i++) {
+    if (document.querySelector('.msg-s-message-list-container')) return 'ready';
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return 'timeout';
+})()"
+
+# Verify the correct thread is loaded (check URL, not just header text)
+playwright-cli eval "(function(){
+  var url = location.pathname;
+  var threadId = url.match(/thread\/(2-[^/]+)/);
+  if (!threadId) return 'no_thread_in_url';
+  var header = document.querySelector('h2');
+  return JSON.stringify({
+    threadId: threadId[1],
+    header: header ? header.textContent.trim() : 'no_header'
+  });
+})()"
+# Confirm the thread ID in the output matches the one you intended.
+# Only then proceed to type and send.
 ```
-URL: https://www.linkedin.com/messaging/
-Strategy: eval click on <li> by person name
-Verify: msg-s-message-list-container exists + <h2> matches name
-```
+
+### Open a conversation by name (FALLBACK: use only if thread ID is unknown)
+
+**Warning:** This method is unreliable. LinkedIn redirects `/messaging/` to the last active thread, and sidebar clicks may not navigate. Always prefer the thread ID method above. If you must use this, verify the thread ID in the URL after clicking — do not trust the header text alone.
 
 ```bash
 node scripts/browser.js goto "https://www.linkedin.com/messaging/"
@@ -114,13 +146,24 @@ playwright-cli eval "(function(){
   return 'not_found';
 })()"
 
-# Verify (Browser Automation Rule 5: check DOM, not URL)
+# CRITICAL: Verify the thread URL changed to the expected thread ID
+# Do NOT trust header text — the composer belongs to whatever thread is in the URL
 playwright-cli eval "(function(){
-  const panel = document.querySelector('.msg-s-message-list-container');
-  const header = document.querySelector('h2');
-  if (panel && header && header.textContent.includes('PERSON_NAME')) return 'ok';
-  return 'not_loaded';
+  var url = location.pathname;
+  var threadId = url.match(/thread\/(2-[^/]+)/);
+  if (!threadId) return 'ERROR: no thread in URL — click may have failed';
+  var panel = document.querySelector('.msg-s-message-list-container');
+  var header = document.querySelector('h2');
+  return JSON.stringify({
+    threadId: threadId[1],
+    header: header ? header.textContent.trim() : 'no_header',
+    panelLoaded: !!panel
+  });
 })()"
+# If threadId doesn't match the expected conversation, STOP.
+# Do not type or send anything. Retry with eval .click() on the <h3>
+# element directly, or use the bulk inbox fetch to get the thread ID
+# and navigate by URL.
 ```
 
 ### Send text-only message (new conversation, via Voyager API)
@@ -622,6 +665,8 @@ csrf = csrf ? csrf.split('=')[1].replace(/"/g,'') : '';
 
 ## Anti-patterns
 
+- **Don't** open `/messaging/` and click a sidebar name to send a message — LinkedIn redirects to the last active thread and sidebar clicks may not navigate. The composer belongs to whatever thread is in the URL, not the name you clicked. Use the bulk inbox fetch to get the thread ID, then navigate directly to `/messaging/thread/<thread_id>/` or use the Voyager API with the thread ID. A message sent to the wrong thread cannot be unsent.
+- **Don't** verify a sent message with `hasMyMsg:true` alone — that only confirms the text exists somewhere on the page (could be the sidebar preview of the wrong conversation). Verify the thread ID in the URL matches the intended recipient AND the input is empty AND the message appears in the conversation pane.
 - **Don't** open conversations one by one when you can use the bulk inbox fetch
 - **Don't** put attachments in `attachments[]` field — use `renderContentUnions`
 - **Don't** use `content-type: application/json` for the dash endpoint — use `text/plain`
