@@ -3,20 +3,9 @@
 # Runs SkillSpector (https://github.com/NVIDIA/SkillSpector) on every pull
 # request that modifies files under `browser-automation/`. Results are emitted
 # as SARIF and uploaded to GitHub Code Scanning. The PR is blocked only when
-# HIGH or CRITICAL severity findings are detected; MEDIUM/LOW findings are
-# reported but do not fail the check.
-#
-# SkillSpector docs (install, CLI, exit codes, output formats):
-#   https://github.com/NVIDIA/SkillSpector#integrating-skillspector
-#
-# Notes on gating strategy:
-#   SkillSpector's exit code is driven by the aggregate risk *score band*
-#   (0 = SAFE/CAUTION, 1 = DO_NOT_INSTALL, 2 = error). A single HIGH finding
-#   only adds 25 points, which can still land in the CAUTION band (exit 0),
-#   so the exit code alone is NOT a reliable per-finding severity gate.
-#   There is no built-in `--fail-on-severity` flag, so we parse the JSON
-#   report's `issues[].severity` field and fail the job only when a HIGH or
-#   CRITICAL finding is present.
+# HIGH or CRITICAL severity findings are detected in files CHANGED by the PR;
+# findings in pre-existing files are reported but do not block, since those
+# were already reviewed when they were originally merged.
 
 name: SkillSpector
 
@@ -24,15 +13,12 @@ on:
   pull_request:
     paths:
       - "browser-automation/**"
-  # Allow manual runs from the Actions tab.
   workflow_dispatch:
 
-# Permissions required to upload SARIF results to GitHub Code Scanning.
 permissions:
   contents: read
   security-events: write
 
-# Prevent concurrent runs of the same PR from racing; cancel superseded runs.
 concurrency:
   group: skillspector-${{ github.ref }}
   cancel-in-progress: true
@@ -43,42 +29,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ---------------------------------------------------------------------
-      # 1. Check out the repository (full history not required for a scan).
-      # ---------------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # ---------------------------------------------------------------------
-      # 2. Set up Python 3.12 (SkillSpector requires Python 3.12+).
-      # ---------------------------------------------------------------------
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      # ---------------------------------------------------------------------
-      # 3. Install SkillSpector.
-      #
-      #    SkillSpector is not published to PyPI; the documented install is
-      #    `uv tool install git+https://github.com/NVIDIA/skillspector.git`.
-      #    The pip equivalent (used here) installs directly from the git repo.
-      # ---------------------------------------------------------------------
       - name: Install SkillSpector
         run: |
           python -m pip install --upgrade pip
           pip install git+https://github.com/NVIDIA/skillspector.git
           skillspector --version
 
-      # ---------------------------------------------------------------------
-      # 4. Run the scan and produce a SARIF report for GitHub Code Scanning.
-      #
-      #    `--no-llm` keeps the scan static-only so it runs in CI without any
-      #    LLM provider credentials. The SARIF file is uploaded in a later
-      #    step regardless of whether this step finds issues, so we use
-      #    `continue-on-error` here and let the dedicated gate step below
-      #    decide whether to fail the PR.
-      # ---------------------------------------------------------------------
+      - name: Get changed files
+        id: changed
+        run: |
+          git fetch origin "${{ github.base_ref }}"
+          CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- 'browser-automation/**')
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHANGED" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "Changed files under browser-automation/:"
+          echo "$CHANGED"
+
       - name: Run SkillSpector (SARIF report)
         continue-on-error: true
         run: |
@@ -87,15 +64,6 @@ jobs:
             --format sarif \
             --output skillspector-results.sarif
 
-      # ---------------------------------------------------------------------
-      # 5. Run the scan again and produce a JSON report for severity gating.
-      #
-      #    We generate JSON separately because its `issues[].severity` field
-      #    gives an explicit per-finding severity (LOW | MEDIUM | HIGH |
-      #    CRITICAL), which is more reliable for gating than the SARIF level
-      #    mapping or the aggregate exit code. The scan is static (--no-llm)
-      #    so running it twice is cheap.
-      # ---------------------------------------------------------------------
       - name: Run SkillSpector (JSON report)
         continue-on-error: true
         run: |
@@ -104,83 +72,98 @@ jobs:
             --format json \
             --output skillspector-results.json
 
-      # ---------------------------------------------------------------------
-      # 6. Gate: fail the PR only on HIGH or CRITICAL findings.
-      #
-      #    Parses the JSON report and inspects every finding's `severity`
-      #    field. If any HIGH or CRITICAL finding is present, the step exits
-      #    with code 1 and fails the job. MEDIUM and LOW findings are printed
-      #    for visibility but do not block the PR. If the JSON report is
-      #    missing (e.g. the scan errored), we fail closed to avoid silently
-      #    passing a broken scan.
-      # ---------------------------------------------------------------------
-      - name: Fail on HIGH or CRITICAL findings
+      - name: Fail on HIGH/CRITICAL findings in changed files
+        env:
+          CHANGED_FILES: ${{ steps.changed.outputs.files }}
         run: |
           python3 <<'PY'
           import json
+          import os
           import sys
           from pathlib import Path
 
           report_path = Path("skillspector-results.json")
           if not report_path.exists():
-              print("::error::SkillSpector JSON report not found; failing closed.")
-              sys.exit(1)
+            print("::error::SkillSpector JSON report not found; failing closed.")
+            sys.exit(1)
 
           try:
-              report = json.loads(report_path.read_text())
+            report = json.loads(report_path.read_text())
           except json.JSONDecodeError as exc:
-              print(f"::error::Could not parse SkillSpector JSON report: {exc}")
-              sys.exit(1)
+            print(f"::error::Could not parse SkillSpector JSON report: {exc}")
+            sys.exit(1)
+
+          changed = set(
+            f.strip() for f in os.environ.get("CHANGED_FILES", "").splitlines() if f.strip()
+          )
+          if not changed:
+            print("No files changed under browser-automation/; nothing to gate.")
+            sys.exit(0)
+
+          print(f"PR changed {len(changed)} file(s) under browser-automation/:")
+          for f in sorted(changed):
+            print(f"  {f}")
 
           issues = report.get("issues", []) or []
           blocking = {"HIGH", "CRITICAL"}
 
-          high_or_critical = [i for i in issues if (i.get("severity") or "").upper() in blocking]
-          medium_or_low = [i for i in issues if (i.get("severity") or "").upper() in {"MEDIUM", "LOW"}]
+          def get_file(issue):
+            loc = issue.get("location", {}) or {}
+            return loc.get("file", "")
 
-          print(f"SkillSpector reported {len(issues)} finding(s): "
-                f"{len(high_or_critical)} HIGH/CRITICAL, {len(medium_or_low)} MEDIUM/LOW.")
+          changed_issues = [i for i in issues if get_file(i) in changed]
+          preexisting_issues = [i for i in issues if get_file(i) not in changed]
 
-          # Per-finding dict shape (from Finding.to_dict() in models.py):
-          #   id, finding_id, category, pattern, severity, confidence,
-          #   location{file,start_line,end_line}, finding, explanation,
-          #   remediation, code_snippet, intent, tags
+          changed_high = [i for i in changed_issues if (i.get("severity") or "").upper() in blocking]
+          changed_medlow = [i for i in changed_issues if (i.get("severity") or "").upper() in {"MEDIUM", "LOW"}]
+          preexisting_high = [i for i in preexisting_issues if (i.get("severity") or "").upper() in blocking]
+
+          print(f"\nFindings in CHANGED files: {len(changed_issues)} "
+                f"({len(changed_high)} HIGH/CRITICAL, {len(changed_medlow)} MEDIUM/LOW)")
+          print(f"Findings in pre-existing files: {len(preexisting_issues)} "
+                f"({len(preexisting_high)} HIGH/CRITICAL) — reported but not blocking")
+
           def describe(issue):
-              return (issue.get("explanation")
-                      or issue.get("finding")
-                      or issue.get("pattern")
-                      or "")
+            return (issue.get("explanation")
+                    or issue.get("finding")
+                    or issue.get("pattern")
+                    or "")
 
-          for issue in high_or_critical:
-              loc = issue.get("location", {}) or {}
-              file = loc.get("file", "<unknown>")
-              line = loc.get("start_line", "?")
-              print(f"::error file={file},line={line}::"
-                    f"{issue.get('severity')} {issue.get('id', '?')} - {issue.get('category', '')}: "
-                    f"{describe(issue)}")
+          for issue in changed_high:
+            loc = issue.get("location", {}) or {}
+            file = loc.get("file", "<unknown>")
+            line = loc.get("start_line", "?")
+            print(f"::error file={file},line={line}::"
+                  f"{issue.get('severity')} {issue.get('id', '?')} - {issue.get('category', '')}: "
+                  f"{describe(issue)}")
 
-          for issue in medium_or_low:
-              loc = issue.get("location", {}) or {}
-              file = loc.get("file", "<unknown>")
-              line = loc.get("start_line", "?")
-              print(f"::warning file={file},line={line}::"
-                    f"{issue.get('severity')} {issue.get('id', '?')} - {issue.get('category', '')}: "
-                    f"{describe(issue)}")
+          for issue in changed_medlow:
+            loc = issue.get("location", {}) or {}
+            file = loc.get("file", "<unknown>")
+            line = loc.get("start_line", "?")
+            print(f"::warning file={file},line={line}::"
+                  f"{issue.get('severity')} {issue.get('id', '?')} - {issue.get('category', '')}: "
+                  f"{describe(issue)}")
 
-          if high_or_critical:
-              print(f"::error::Failing PR: {len(high_or_critical)} HIGH/CRITICAL finding(s) detected.")
-              sys.exit(1)
+          for issue in preexisting_high:
+            loc = issue.get("location", {}) or {}
+            file = loc.get("file", "<unknown>")
+            line = loc.get("start_line", "?")
+            print(f"::notice file={file},line={line}::"
+                  f"PRE-EXISTING {issue.get('severity')} {issue.get('id', '?')} - {issue.get('category', '')}: "
+                  f"{describe(issue)}")
 
-          print("No HIGH/CRITICAL findings; PR is allowed to proceed.")
+          if changed_high:
+            print(f"\n::error::Failing PR: {len(changed_high)} HIGH/CRITICAL finding(s) in changed files.")
+            sys.exit(1)
+
+          print(f"\nNo HIGH/CRITICAL findings in changed files; PR is allowed to proceed.")
+          if preexisting_high:
+            print(f"Note: {len(preexisting_high)} HIGH/CRITICAL finding(s) in pre-existing files "
+                  f"were reported as notices but do not block this PR.")
           sys.exit(0)
           PY
 
-      # ---------------------------------------------------------------------
-      # 7. Upload SARIF results to GitHub Code Scanning.
-      #
-      #    `if: always()` ensures results are uploaded even when the gate
-      #    step above fails, so findings are visible in the PR Security tab.
-      # ---------------------------------------------------------------------
       - name: Upload SARIF to GitHub Code Scanning
         if: always()
         uses: github/codeql-action/upload-sarif@v3
