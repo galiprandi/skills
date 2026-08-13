@@ -122,8 +122,9 @@ jobs:
 
           print(f"Loaded {len(suppressions)} suppression(s) from allowlist.")
           for s in suppressions:
-              print(f"  - {s.get('rule', '?')} in {s.get('file', '?')}"
-                    f"{f' matching \"{s.get(\"match\")}\"' if s.get('match') else ''}")
+              match_str = s.get('match', '')
+              match_display = (' matching "%s"' % match_str) if match_str else ''
+              print('  - %s in %s%s' % (s.get('rule', '?'), s.get('file', '?'), match_display))
 
           def is_suppressed(issue):
               """Check if a finding matches any allowlist entry."""
