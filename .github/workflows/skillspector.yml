@@ -1,11 +1,19 @@
 # SkillSpector CI - Security scan for AI agent skills under browser-automation/
 #
-# Runs SkillSpector (https://github.com/NVIDIA/SkillSpector) on every pull
-# request that modifies files under `browser-automation/`. Results are emitted
-# as SARIF and uploaded to GitHub Code Scanning. The PR is blocked only when
-# HIGH or CRITICAL severity findings are detected in files CHANGED by the PR;
-# findings in pre-existing files are reported but do not block, since those
-# were already reviewed when they were originally merged.
+# Hard gate: blocks PRs with HIGH/CRITICAL SkillSpector findings in CHANGED
+# files, minus documented false positives in skillspector-allow.yml.
+#
+# Design decisions:
+# - Only findings in files CHANGED by the PR are evaluated. Pre-existing
+#   findings were reviewed when those files were originally merged.
+# - An allowlist (.github/skillspector-allow.yml) suppresses known false
+#   positives scoped to specific files. Browser automation legitimately
+#   uses network, env vars, state persistence, and token extraction —
+#   patterns that trigger SkillSpector but are benign for this skill.
+# - SkillSpector is pinned to a specific commit for reproducibility and
+#   supply-chain safety.
+# - SARIF is uploaded to GitHub Code Scanning regardless of gate result
+#   so all findings (including suppressed) are visible in the Security tab.
 
 name: SkillSpector
 
@@ -72,7 +80,7 @@ jobs:
             --format json \
             --output skillspector-results.json
 
-      - name: Fail on HIGH/CRITICAL findings in changed files
+      - name: Gate on HIGH/CRITICAL findings in changed files (with allowlist)
         env:
           CHANGED_FILES: ${{ steps.changed.outputs.files }}
         run: |
@@ -82,6 +90,60 @@ jobs:
           import sys
           from pathlib import Path
 
+          # --- Load and parse the allowlist ---
+          allowlist_path = Path(".github/skillspector-allow.yml")
+          # Minimal YAML parser (avoid pyyaml dependency): extract suppressions list
+          # Format: suppressions:\n  - rule: X\n    file: Y\n    match: Z\n    reason: ...
+          suppressions = []
+          if allowlist_path.exists():
+              text = allowlist_path.read_text()
+              in_supp = False
+              current = {}
+              for line in text.splitlines():
+                  stripped = line.strip()
+                  if stripped == "suppressions:":
+                      in_supp = True
+                      continue
+                  if in_supp and stripped.startswith("- "):
+                      if current:
+                          suppressions.append(current)
+                      current = {}
+                      continue
+                  if in_supp and ":" in stripped and not stripped.startswith("#"):
+                      key, _, val = stripped.partition(":")
+                      val = val.strip().strip('"').strip("'")
+                      if val:
+                          current[key.strip()] = val
+                      elif key.strip() == "reason" and not val:
+                          # Multi-line reason starts here; capture next indented lines
+                          current[key.strip()] = ""
+              if current:
+                  suppressions.append(current)
+
+          print(f"Loaded {len(suppressions)} suppression(s) from allowlist.")
+          for s in suppressions:
+              print(f"  - {s.get('rule', '?')} in {s.get('file', '?')}"
+                    f"{f' matching \"{s.get(\"match\")}\"' if s.get('match') else ''}")
+
+          def is_suppressed(issue):
+              """Check if a finding matches any allowlist entry."""
+              loc = issue.get("location", {}) or {}
+              file = loc.get("file", "")
+              rule = issue.get("id", "") or issue.get("pattern", "") or ""
+              msg = (issue.get("explanation") or issue.get("finding") or
+                     issue.get("pattern") or "")
+              for s in suppressions:
+                  if s.get("rule", "").upper() != rule.upper():
+                      continue
+                  if s.get("file", "") != file:
+                      continue
+                  match = s.get("match", "")
+                  if match and match.lower() not in msg.lower():
+                      continue
+                  return True, s.get("reason", "")
+              return False, ""
+
+          # --- Load the JSON report ---
           report_path = Path("skillspector-results.json")
           if not report_path.exists():
             print("::error::SkillSpector JSON report not found; failing closed.")
@@ -93,31 +155,27 @@ jobs:
             print(f"::error::Could not parse SkillSpector JSON report: {exc}")
             sys.exit(1)
 
-          changed = set(
+          # --- Normalize changed files (strip browser-automation/ prefix) ---
+          changed_raw = set(
             f.strip() for f in os.environ.get("CHANGED_FILES", "").splitlines() if f.strip()
           )
-          if not changed:
+          if not changed_raw:
             print("No files changed under browser-automation/; nothing to gate.")
             sys.exit(0)
 
-          # SkillSpector reports paths relative to the scanned directory
-          # (e.g. "sites/foo.md"), but git diff reports paths relative to the
-          # repo root (e.g. "browser-automation/sites/foo.md"). Normalize by
-          # stripping the "browser-automation/" prefix from changed files so
-          # they match SkillSpector's reported paths.
           SCAN_PREFIX = "browser-automation/"
-          changed_normalized = set()
-          for f in changed:
+          changed = set()
+          for f in changed_raw:
             if f.startswith(SCAN_PREFIX):
-              changed_normalized.add(f[len(SCAN_PREFIX):])
+              changed.add(f[len(SCAN_PREFIX):])
             else:
-              changed_normalized.add(f)
-          changed = changed_normalized
+              changed.add(f)
 
-          print(f"PR changed {len(changed)} file(s) under browser-automation/:")
+          print(f"\nPR changed {len(changed)} file(s) (normalized to scan dir):")
           for f in sorted(changed):
             print(f"  {f}")
 
+          # --- Classify findings ---
           issues = report.get("issues", []) or []
           blocking = {"HIGH", "CRITICAL"}
 
@@ -125,17 +183,8 @@ jobs:
             loc = issue.get("location", {}) or {}
             return loc.get("file", "")
 
-          changed_issues = [i for i in issues if get_file(i) in changed]
-          preexisting_issues = [i for i in issues if get_file(i) not in changed]
-
-          changed_high = [i for i in changed_issues if (i.get("severity") or "").upper() in blocking]
-          changed_medlow = [i for i in changed_issues if (i.get("severity") or "").upper() in {"MEDIUM", "LOW"}]
-          preexisting_high = [i for i in preexisting_issues if (i.get("severity") or "").upper() in blocking]
-
-          print(f"\nFindings in CHANGED files: {len(changed_issues)} "
-                f"({len(changed_high)} HIGH/CRITICAL, {len(changed_medlow)} MEDIUM/LOW)")
-          print(f"Findings in pre-existing files: {len(preexisting_issues)} "
-                f"({len(preexisting_high)} HIGH/CRITICAL) — reported but not blocking")
+          def get_sev(issue):
+            return (issue.get("severity") or "").upper()
 
           def describe(issue):
             return (issue.get("explanation")
@@ -143,7 +192,34 @@ jobs:
                     or issue.get("pattern")
                     or "")
 
-          for issue in changed_high:
+          changed_issues = [i for i in issues if get_file(i) in changed]
+          preexisting_issues = [i for i in issues if get_file(i) not in changed]
+
+          # Split changed findings: suppressed vs blocking vs non-blocking
+          changed_blocking = []
+          changed_suppressed = []
+          changed_medlow = []
+          for i in changed_issues:
+            sev = get_sev(i)
+            supp, reason = is_suppressed(i)
+            if supp:
+              changed_suppressed.append((i, reason))
+            elif sev in blocking:
+              changed_blocking.append(i)
+            elif sev in {"MEDIUM", "LOW"}:
+              changed_medlow.append(i)
+
+          preexisting_high = [i for i in preexisting_issues if get_sev(i) in blocking]
+
+          print(f"\nFindings in CHANGED files:")
+          print(f"  Blocking (HIGH/CRITICAL, not allowlisted): {len(changed_blocking)}")
+          print(f"  Suppressed (in allowlist): {len(changed_suppressed)}")
+          print(f"  Non-blocking (MEDIUM/LOW): {len(changed_medlow)}")
+          print(f"Findings in pre-existing files: {len(preexisting_issues)} "
+                f"({len(preexisting_high)} HIGH/CRITICAL) — not evaluated")
+
+          # Report blocking findings as errors
+          for issue in changed_blocking:
             loc = issue.get("location", {}) or {}
             file = loc.get("file", "<unknown>")
             line = loc.get("start_line", "?")
@@ -151,6 +227,17 @@ jobs:
                   f"{issue.get('severity')} {issue.get('id', '?')} - {issue.get('category', '')}: "
                   f"{describe(issue)}")
 
+          # Report suppressed findings as notices (for audit trail)
+          for issue, reason in changed_suppressed:
+            loc = issue.get("location", {}) or {}
+            file = loc.get("file", "<unknown>")
+            line = loc.get("start_line", "?")
+            print(f"::notice file={file},line={line}::"
+                  f"SUPPRESSED {issue.get('severity')} {issue.get('id', '?')} - "
+                  f"{issue.get('category', '')}: {describe(issue)} "
+                  f"[Allowlisted: {reason[:80]}...]")
+
+          # Report non-blocking findings as warnings
           for issue in changed_medlow:
             loc = issue.get("location", {}) or {}
             file = loc.get("file", "<unknown>")
@@ -159,19 +246,24 @@ jobs:
                   f"{issue.get('severity')} {issue.get('id', '?')} - {issue.get('category', '')}: "
                   f"{describe(issue)}")
 
+          # Report pre-existing HIGH as notices (context only)
           for issue in preexisting_high:
             loc = issue.get("location", {}) or {}
             file = loc.get("file", "<unknown>")
             line = loc.get("start_line", "?")
             print(f"::notice file={file},line={line}::"
-                  f"PRE-EXISTING {issue.get('severity')} {issue.get('id', '?')} - {issue.get('category', '')}: "
-                  f"{describe(issue)}")
+                  f"PRE-EXISTING {issue.get('severity')} {issue.get('id', '?')} - "
+                  f"{issue.get('category', '')}: {describe(issue)}")
 
-          if changed_high:
-            print(f"\n::error::Failing PR: {len(changed_high)} HIGH/CRITICAL finding(s) in changed files.")
+          # --- Gate ---
+          if changed_blocking:
+            print(f"\n::error::Failing PR: {len(changed_blocking)} HIGH/CRITICAL finding(s) "
+                  f"in changed files (not in allowlist).")
             sys.exit(1)
 
-          print(f"\nNo HIGH/CRITICAL findings in changed files; PR is allowed to proceed.")
+          print(f"\nNo blocking findings in changed files; PR is allowed to proceed.")
+          if changed_suppressed:
+            print(f"Note: {len(changed_suppressed)} finding(s) were suppressed by the allowlist.")
           if preexisting_high:
             print(f"Note: {len(preexisting_high)} HIGH/CRITICAL finding(s) in pre-existing files "
                   f"were reported as notices but do not block this PR.")
