@@ -1,0 +1,61 @@
+# SkillSpector false-positive allowlist.
+#
+# SkillSpector's static scan is high-recall / moderate-precision. Browser
+# automation legitimately uses network access, env vars, state persistence,
+# and token extraction — all of which trigger findings that are false
+# positives for THIS skill but would be real threats in other contexts.
+#
+# This file is the auditable place to suppress those known false positives so
+# the CI gate does not fail on them. Everything not listed here still fails
+# the build at HIGH/CRITICAL.
+#
+# Each entry suppresses ONE rule for ONE file:
+#   rule:   SkillSpector rule id (e.g. YR1, PE3, MP3, LP1)
+#   file:   path as SkillSpector reports it (relative to browser-automation/)
+#   match:  (optional) substring that must appear in the finding message
+#   reason: why this is a false positive (keep it accurate and specific)
+#
+# Add entries sparingly and only when the finding is demonstrably benign.
+
+suppressions:
+  - rule: LP1
+    file: scripts/browser.js
+    match: env capability
+    reason: >-
+      False positive. BROWSER_MODE is a legitimate config env var for
+      headed/headless mode selection. It is read by the wrapper to decide
+      browser visibility, not for credential access or privilege escalation.
+
+  - rule: LP1
+    file: scripts/browser.js
+    match: network capability
+    reason: >-
+      False positive. Browser automation requires network access by design —
+      the wrapper opens URLs, navigates pages, and makes fetch() calls with
+      the browser's cookies. This is the core functionality, not deceptive.
+
+  - rule: MP3
+    file: scripts/browser.js
+    reason: >-
+      False positive. save-state/load-state persist browser auth state
+      (cookies, localStorage) across sessions. This is standard browser
+      automation practice for maintaining login sessions, not memory
+      poisoning or agent state manipulation.
+
+  - rule: PE3
+    file: references/token-extraction.md
+    match: credential files
+    reason: >-
+      False positive. The reference documents how to extract auth tokens
+      from localStorage (JWT, OAuth, Cognito) for calling internal APIs.
+      This is the skill's documented functionality — tokens are extracted
+      from the browser's own storage, not from credential files like
+      ~/.ssh or ~/.aws.
+
+  - rule: YR1
+    file: SKILL.md
+    reason: >-
+      False positive. The YARA match is triggered by browser automation
+      patterns that resemble malware signatures (network calls, process
+      management, state persistence). These are the skill's core
+      functionality, not malware indicators.
