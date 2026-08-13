@@ -100,6 +100,20 @@ jobs:
             print("No files changed under browser-automation/; nothing to gate.")
             sys.exit(0)
 
+          # SkillSpector reports paths relative to the scanned directory
+          # (e.g. "sites/foo.md"), but git diff reports paths relative to the
+          # repo root (e.g. "browser-automation/sites/foo.md"). Normalize by
+          # stripping the "browser-automation/" prefix from changed files so
+          # they match SkillSpector's reported paths.
+          SCAN_PREFIX = "browser-automation/"
+          changed_normalized = set()
+          for f in changed:
+            if f.startswith(SCAN_PREFIX):
+              changed_normalized.add(f[len(SCAN_PREFIX):])
+            else:
+              changed_normalized.add(f)
+          changed = changed_normalized
+
           print(f"PR changed {len(changed)} file(s) under browser-automation/:")
           for f in sorted(changed):
             print(f"  {f}")
