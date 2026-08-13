@@ -2,6 +2,8 @@
 
 > 🚀 Supercharge your AI coding assistant with specialized skills
 
+[![skills.sh](https://skills.sh/b/galiprandi/skills)](https://skills.sh/galiprandi/skills)
+
 This repository contains AI skills that enhance your coding experience with tools like Claude Code, Cursor, Windsurf, and other AI-powered development environments.
 
 ## 🎯 What are AI Skills?
@@ -13,6 +15,8 @@ AI Skills are specialized knowledge modules that teach your AI assistant how to 
 ### Browser Automation ⭐
 
 **browser-automation** — Control a dedicated browser via playwright-cli for web automation. Covers generic browser operations (golden rules, safe wrapper, parallel sessions, profile management) plus site-specific guides for Gmail, LinkedIn, Teams, Jira, Teamtailor, and Humand.co — loaded on demand to save tokens.
+
+**Quality benchmark:** [NVIDIA SkillEvaluator](https://github.com/NVIDIA/SkillEvaluator) score **96.2/100 (Grade A)** — Correctness 100, Discoverability 100, Reliability 100, Efficiency 75. SKILL.md optimized to <5000 tokens with progressive disclosure (detailed content in `references/`).
 
 **What it helps with:**
 - Browser automation with persistent profiles (never commit the profile dir)
