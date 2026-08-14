@@ -48,6 +48,7 @@ Operate a real browser session: navigate, click, fill forms, extract data, and c
 - **401 from API:** Token expired — re-extract from localStorage
 - **Session killed:** Never use shell `sleep` — use in-page polling via `eval` (Rule 2)
 - **Two browser instances:** Use `--tab` or sessions, never open twice
+- **Site returns 403 on curl/HTTP but works in browser:** Sites like Reddit block non-browser User-Agents on HTTP APIs (JSON, RSS) but do NOT block the Playwright browser session in headed mode. If curl returns 403, do NOT assume the browser is also blocked. Use `goto` + `eval` in the browser. If the browser also returns 403, you are likely in headless mode — `close --force` and reopen with `--headed`. Some sites (Reddit) detect headless browsers and block them, but allow headed browsers with a real profile.
 
 ## App guides (LOAD BEFORE interacting with a specific app)
 
@@ -61,6 +62,7 @@ Before automating a specific web app, **read the corresponding guide** in `sites
 | Jira | `sites/jira_com/guide.md` | Before any Jira operation (create issue, add comment, transition status) |
 | Teamtailor | `sites/teamtailor_com/guide.md` | Before applying to jobs on Teamtailor-based career sites |
 | Humand.co | `sites/humand_co/guide.md` | Before applying to jobs on Humand.co-based career sites |
+| Reddit | `sites/reddit_com/guide.md` | Before any Reddit operation (reading posts/comments, posting submissions, replying to comments, posting in megathreads) |
 
 **How to load:** read the file with your read tool. Example: `read .agents/skills/browser-automation/sites/gmail_com/guide.md`
 
