@@ -282,6 +282,65 @@ playwright-cli eval "(async function(){
 
 **Cc/Bcc fields are hidden by default.** Click the "Cc/Bcc" labels in the compose dialog to reveal them.
 
+### Schedule send (programar envío)
+
+Gmail's native schedule send is preferable to SMTP + cron/sleep because it survives session disconnects and is visible in the "Programados" (Scheduled) folder.
+
+**Flow:**
+
+1. Compose the email as usual (fill To, Subject, Body)
+2. Click "Más opciones de envío" button (next to "Enviar")
+3. A menu appears with `[role=menuitem]` containing "Programar envío" / "Schedule send"
+4. Click that menuitem -> a schedule dialog opens with preset options:
+   - "Mañana por la mañana" (Tomorrow morning, 8:00)
+   - "Mañana por la tarde" (Tomorrow afternoon, 13:00)
+   - "El lunes por la mañana" (Monday morning, 8:00)
+   - "Elegir fecha y hora" (Pick date and time)
+5. For custom time, click "Elegir fecha y hora" -> dialog with `textbox "Fecha"` and `textbox "Hora"` appears
+6. Fill the date and time inputs, then click "Programar envío" button to confirm
+
+**Selectors (Spanish UI, English equivalents noted):**
+
+| Field | Selector | Notes |
+|---|---|---|
+| More send options | `button` matching text "Más opciones de envío" | English: "More send options" |
+| Schedule send menuitem | `[role=menuitem]` matching text "Programar envío" | English: "Schedule send" |
+| Pick date/time link | text "Elegir fecha y hora" | English: "Pick date & time" |
+| Date input | `textbox "Fecha"` | English: `textbox "Date"` |
+| Time input | `textbox "Hora"` | English: `textbox "Time"` |
+| Confirm schedule | `button "Programar envío"` | English: `button "Schedule send"` |
+
+**Key learnings:**
+
+- The "Más opciones de envío" button may need a direct `click` via ref (not eval dispatchEvent). The menu appears as `[role=menu]` with `[role=menuitem]` children.
+- The time input accepts formats like "8:30" or "08:30". Use `fill` with the ref, or eval with native setter + `input` event + Enter keypress.
+- After scheduling, the email moves to the "Programados" folder (sidebar label "Programados" with count). Verify by navigating to `#scheduled` and checking the email appears with "Programado para enviarse" text.
+- The preset options (Mañana 8:00, etc.) are quick but fixed times. For arbitrary times like 8:30, must use "Elegir fecha y hora".
+- The schedule dialog may close if the time input loses focus. Fill time last, then immediately click the confirm button.
+
+**Verification:**
+
+```bash
+# Navigate to Scheduled folder
+node scripts/browser.js goto "https://mail.google.com/mail/u/0/#scheduled"
+
+# Check the scheduled email appears
+node scripts/browser.js exec eval "(async function(){
+  await new Promise(r=>setTimeout(r,3000));
+  var body=document.body.innerText;
+  if(body.match(/Programado para enviarse/i)) return 'verified';
+  return 'not_found';
+})()"
+```
+
+**When to use schedule send vs SMTP:**
+
+| Scenario | Method |
+|---|---|
+| Send immediately | SMTP (`scripts/send-email.js`) — faster, no browser needed |
+| Schedule for later | Gmail native schedule send — survives disconnects, visible in UI |
+| Schedule via SMTP | `at`/`sleep` + SMTP — works but fragile, dies if session closes |
+
 ## Replying to emails (DIFFERENT from compose)
 
 Reply is different from compose. The reply body **IS** a contenteditable div (unlike compose which uses a textarea).

@@ -637,6 +637,13 @@ URL parameters:
 - `f_WT=2` = Remote only
 - `sortBy=DD` = sorted by date (most recent first)
 - Keywords with OR (URL encoded): `%22<Role1>%22%20OR%20%22<Role2>%22`
+- `location=Worldwide` = override the user's profile location filter (critical for remote jobs)
+
+**Location filter gotcha:** LinkedIn persists the user's profile location (e.g: "United Arab Emirates") as the default search location. Even with `f_WT=2` (remote), results are scoped to that location's job market, severely limiting results. Always include `&location=Worldwide` in search URLs to get global remote jobs. Without it, searches may return 0-7 results instead of 20+.
+
+**Pagination:** LinkedIn job search shows ~25 results per page. To get more, either:
+- Scroll the results list: `window.scrollBy(0, 5000)` + wait + extract
+- Use the pagination URL parameter: `&start=25` for page 2, `&start=50` for page 3
 
 ```bash
 node scripts/browser.js goto "https://www.linkedin.com/jobs/search/?keywords=<keywords>&location=<loc>&f_AL=true&f_WT=2&sortBy=DD"
@@ -713,6 +720,10 @@ playwright-cli eval "(function(){
 - Some forms have `combobox` that appear selected but aren't. Verify with `option.*selected`.
 - The "Continue" button may not advance if there are errors. Always grep `Please make a selection` | `Please enter a valid answer` | `Required` after each click.
 - Some forms open a file chooser when clicking "Attach". Use `playwright-cli upload <path>` immediately.
+- **"Continue applying" safety dialog**: LinkedIn may show a "Job search safety reminder" dialog with a "Continue applying" button when navigating to a job page. This dialog blocks the Easy Apply button. Dismiss it first by clicking "Continue applying" before attempting to click Easy Apply.
+- **Multi-page forms with required questions**: Many Easy Apply jobs have 3-5 page forms with required text inputs, radio groups, and comboboxes on page 3+ ("Preguntas adicionales"). The automated script (`linkedin-easy-apply.js`) may skip these because it can't answer job-specific questions. For batch applications, jobs without additional questions (1-2 page forms) succeed; jobs with custom questions require manual intervention.
+- **Easy Apply button click reliability**: `dispatchEvent` with mouse events may not open the compose dialog. Use direct `click` via ref from snapshot (`node scripts/browser.js exec click <ref>`) for reliable results. The button ref can be found by grepping the snapshot for `Easy Apply to`.
+- **Form dialog detection**: The Easy Apply form dialog may not match `[role=dialog]` in some LinkedIn versions. Check for the heading "Apply to <Company>" or the text "X/Y pages" to confirm the form is open.
 
 **Captcha:** if a captcha appears, stop and ask the user. Never attempt to solve programmatically.
 
