@@ -66,6 +66,8 @@ Before automating a specific web app, **read the corresponding guide** in `sites
 
 **How to load:** read the file with your read tool. Example: `read .agents/skills/browser-automation/sites/gmail_com/guide.md`
 
+**Before each interaction with a documented site:** grep the specific pattern you need (compose, reply, send, fill, contenteditable, etc.) in the site guide. Do not trial-and-error blindly. The guides contain validated methods and explicit warnings about what does NOT work. Example: `grep "contenteditable" sites/linkedin_com/guide.md`
+
 **Check for existing scripts first:** the consuming repo may already have scripts that wrap common operations (e.g. `scripts/linkedin-inbox.js`, `scripts/send-email.js`). Run `ls scripts/` to see what's available. **Prefer existing scripts over manual UI automation** — they're faster, more reliable, and handle edge cases. The app guides list common scripts to look for.
 
 **NEVER edit scripts to hardcode personal data.** Scripts should auto-detect values at runtime or accept them as arguments. If a script has a placeholder like `<YOUR_FSD_PROFILE_ID>`, it's a bug — fix the script to auto-detect, don't replace the placeholder with a real value. Hardcoding personal data in tracked files violates repo portability.
