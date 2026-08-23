@@ -139,6 +139,193 @@ playwright-cli eval "(function(){
 - `participants` includes target name → use that `threadId` for sending via API or URL navigation
 - `lastActivityAt` → compare against your last review timestamp to detect new activity
 
+### Navigate between conversations
+
+*Validated 2026-08-23 against live LinkedIn Messaging.*
+
+LinkedIn Messaging is a SPA where the conversation list and the active thread are separate panels. Switching conversations has several gotchas.
+
+#### The reliable way: navigate by thread URL
+
+**Always navigate directly to the thread URL.** This is the only method that reliably switches conversations.
+
+```bash
+# Get thread IDs from the bulk inbox fetch (see "Bulk inbox fetch" above)
+# Then navigate directly:
+node scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/" --tab linkedin
+
+# Wait for messages to load (see "Read messages" below for the polling pattern)
+```
+
+#### What does NOT work
+
+**Sidebar clicks from `/messaging/`** — clicking a conversation in the sidebar often fails to navigate. The URL stays on the previous thread, and the message panel doesn't update. This is the most common failure mode.
+
+```bash
+# ❌ Unreliable — click may not navigate
+node scripts/browser.js exec eval "(function(){
+  var items = document.querySelectorAll('.msg-conversation-listitem');
+  for (var i = 0; i < items.length; i++) {
+    var name = items[i].querySelector('h3')?.innerText?.trim() || '';
+    if (name.includes('TARGET_NAME')) { items[i].click(); return 'clicked'; }
+  }
+  return 'not found';
+})()" --tab linkedin
+# URL may still point to the previous thread
+```
+
+**Keyboard navigation (Arrow Down/Up)** — pressing arrow keys moves the highlight in the conversation list but does not navigate to the thread. The URL and message panel stay on the previous conversation.
+
+```bash
+# ❌ Does not navigate — only moves highlight
+node scripts/browser.js exec press ArrowDown --tab linkedin
+# URL unchanged, message panel unchanged
+```
+
+**`/messaging/` redirect** — navigating to `https://www.linkedin.com/messaging/` (without a thread ID) redirects to the last active thread. This is not a way to switch conversations — it's a way to return to wherever you last were.
+
+#### Bulk navigation pattern
+
+To read messages from multiple conversations, loop through thread IDs from the bulk inbox fetch:
+
+```bash
+# 1. Fetch all thread IDs + participant names (see "Bulk inbox fetch" above)
+# 2. For each thread, navigate by URL and extract messages
+
+for THREAD_ID in "2-AAAA==" "2-BBBB==" "2-CCCC=="; do
+  node scripts/browser.js goto "https://www.linkedin.com/messaging/thread/$THREAD_ID/" --tab linkedin
+  # Wait for messages to load
+  node scripts/browser.js exec eval "(async function(){
+    for (var i = 0; i < 30; i++) {
+      var items = document.querySelectorAll('.msg-s-event-listitem');
+      if (items.length > 0) return 'ready';
+      await new Promise(function(r){setTimeout(r, 500)});
+    }
+    return 'timeout';
+  })()" --tab linkedin
+  # Extract messages (see "Read messages" below)
+done
+```
+
+**Timing:** each navigation + load takes ~5-8 seconds (navigation + SPA hydration + message render). Budget accordingly for bulk reads.
+
+### Read messages from a conversation (full extraction with sender/direction)
+
+*Validated 2026-08-23 against live LinkedIn Messaging.*
+
+There are two methods to read messages from a conversation: **Voyager API** (preferred, returns structured data with sender) and **DOM extraction** (fallback, requires navigating to the thread).
+
+#### Method 1: Voyager API (preferred)
+
+Fetch events from a thread by thread ID. Returns structured data with sender, body, and timestamp.
+
+```bash
+# Navigate to messaging first (loads required cookies)
+node scripts/browser.js goto "https://www.linkedin.com/messaging/" --tab linkedin
+
+# Fetch events from a thread
+node scripts/browser.js exec eval "(function(){
+  var csrf = document.cookie.split('; ').find(function(c){return c.indexOf('JSESSIONID=')===0});
+  csrf = csrf ? csrf.split('=')[1].replace(/\"/g,'') : '';
+  var THREAD_ID = '2-XXXXX==';
+
+  return fetch('/voyager/api/messaging/conversations/' + encodeURIComponent(THREAD_ID) + '/events?start=0&count=50', {
+    headers: {
+      'accept': 'application/vnd.linkedin.normalized+json+2.1',
+      'x-restli-protocol-version': '2.0.0',
+      'x-li-lang': 'en_US',
+      'csrf-token': csrf
+    }
+  }).then(function(r){return r.json()}).then(function(data){
+    var included = data.included || {};
+    var msgs = [];
+    for (var key in included) {
+      var evt = included[key];
+      if (!evt || evt.\$type !== 'com.linkedin.voyager.messaging.Event') continue;
+      var fromRef = evt['*from'] || '';
+      var senderObj = included[fromRef];
+      var sender = '';
+      if (senderObj) sender = (senderObj.firstName || '') + ' ' + (senderObj.lastName || '');
+      var body = '';
+      var ec = evt.eventContent;
+      if (ec) {
+        if (ec.attributedBody) body = ec.attributedBody.text || '';
+        else if (ec.body) body = ec.body || '';
+      }
+      if (body) msgs.push({sender: sender.trim(), body: body, createdAt: evt.createdAt || 0});
+    }
+    msgs.sort(function(a,b){ return a.createdAt - b.createdAt; });
+    return JSON.stringify(msgs);
+  });
+})()" --tab linkedin
+```
+
+**Thread ID format:** the `2-XXXXX==` from the bulk inbox fetch. The `==` suffix is part of the ID — include it when URL-encoding. If you get `{"data":{"status":400},"included":[]}`, the thread ID is malformed or missing the `==` padding.
+
+**Sender resolution:** `*from` is a ref to a `MessagingMember` or `MiniProfile` object in `included`. Look it up and read `firstName` + `lastName`. Messages from yourself will have your own name.
+
+**Count parameter:** `count=50` returns the last 50 messages. For longer conversations, increase to `count=100` or paginate with `start=50`.
+
+#### Method 2: DOM extraction (fallback)
+
+Navigate to the thread URL and extract messages from the rendered DOM. Use this when the API returns errors or the response structure changes.
+
+```bash
+# 1. Navigate to the thread by ID (include == suffix)
+node scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/" --tab linkedin
+
+# 2. Wait for messages to load (poll — LinkedIn is a SPA, messages load async)
+node scripts/browser.js exec eval "(async function(){
+  for (var i = 0; i < 30; i++) {
+    var items = document.querySelectorAll('.msg-s-event-listitem');
+    if (items.length > 0) return 'ready: ' + items.length + ' items';
+    await new Promise(function(r){setTimeout(r, 500)});
+  }
+  return 'timeout';
+})()" --tab linkedin
+
+# 3. Extract messages with direction (sent vs received)
+node scripts/browser.js exec eval "(function(){
+  var items = document.querySelectorAll('.msg-s-event-listitem');
+  var out = [];
+  items.forEach(function(it){
+    var isReceived = it.classList.contains('msg-s-event-listitem--other');
+    var txt = (it.querySelector('.msg-s-event-listitem__body') || it).innerText.trim();
+    if (txt) out.push({dir: isReceived ? 'in' : 'out', text: txt});
+  });
+  return JSON.stringify(out);
+})()" --tab linkedin
+```
+
+**Direction detection:** the class `msg-s-event-listitem--other` marks messages from the other participant. Its absence means the message was sent by you.
+
+**Selector for message text:** `.msg-s-event-listitem__body` contains the message body. Fall back to the listitem's `innerText` if the body element is missing.
+
+**Polling is required:** LinkedIn renders messages asynchronously after navigation. A single `eval` without waiting returns `no items` or `[]`. Always poll with the async loop above (up to 15 seconds).
+
+**Scrolling for older messages:** the message list uses virtual scrolling. To load older messages, scroll the container to the top repeatedly:
+
+```bash
+node scripts/browser.js exec eval "(async function(){
+  var container = document.querySelector('.msg-s-message-listcontainer');
+  if (!container) return 'no container';
+  var seen = {};
+  for (var i = 0; i < 10; i++) {
+    document.querySelectorAll('.msg-s-event-listitem').forEach(function(it){
+      var txt = (it.querySelector('.msg-s-event-listitem__body') || it).innerText.trim();
+      if (txt) seen[txt] = it.classList.contains('msg-s-event-listitem--other') ? 'in' : 'out';
+    });
+    container.scrollTop = 0;
+    await new Promise(function(r){setTimeout(r, 800)});
+  }
+  return JSON.stringify(seen);
+})()" --tab linkedin
+```
+
+**Gotcha — sidebar clicks don't navigate:** clicking a conversation in the sidebar from `/messaging/` often fails to navigate (the URL stays on the previous thread). Always navigate directly to `https://www.linkedin.com/messaging/thread/<THREAD_ID>/` by URL.
+
+**Gotcha — thread ID needs `==` in URL:** the thread ID from the bulk inbox fetch may or may not include the `==` suffix. When navigating by URL, include `==` (e.g. `/messaging/thread/2-XXXXX==/`). Without it, the page may load but show no messages.
+
 ### Send reply via Voyager API (SAFE: by thread ID)
 
 **This is the only safe way to send a message.** The thread ID is obtained from the bulk inbox fetch above. No UI interaction needed — the API call works from any LinkedIn page.
@@ -904,6 +1091,79 @@ node scripts/browser.js exec find "Delete"
 ```
 
 **Verification:** the post text no longer appears in the activity page, and a toast confirms deletion.
+
+### Read your own posts (activity page extraction)
+
+*Validated 2026-08-23 against live LinkedIn.*
+
+To extract your own published posts (feed shares), navigate to your activity page and scrape the post text from the DOM.
+
+```bash
+# 1. Navigate to your activity page (shares only, or all activity)
+node scripts/browser.js goto "https://www.linkedin.com/in/<profile_id>/recent-activity/shares/" --tab linkedin
+
+# Note: LinkedIn may redirect /shares/ to /all/ — both work, /all/ shows posts + comments + reactions
+
+# 2. Wait for posts to render (poll — async SPA load)
+node scripts/browser.js exec eval "(async function(){
+  for (var i = 0; i < 30; i++) {
+    var posts = document.querySelectorAll('.feed-shared-update-v2__description, .update-components-text');
+    if (posts.length > 0) return 'ready: ' + posts.length;
+    await new Promise(function(r){setTimeout(r, 500)});
+  }
+  return 'timeout';
+})()" --tab linkedin
+
+# 3. Extract post texts (deduplicated — the activity page may render duplicates)
+node scripts/browser.js exec eval "(function(){
+  var posts = document.querySelectorAll('.feed-shared-update-v2__description, .update-components-text');
+  var seen = {};
+  var out = [];
+  posts.forEach(function(p){
+    var t = p.innerText.trim();
+    if (t.length > 20 && !seen[t]) { seen[t] = true; out.push(t); }
+  });
+  return JSON.stringify(out);
+})()" --tab linkedin
+```
+
+**Selectors:** `.feed-shared-update-v2__description` and `.update-components-text` both contain post body text. Query both to cover different LinkedIn UI versions.
+
+**Duplicates:** the activity page sometimes renders the same post twice (e.g. once in a featured section, once in the feed). Always deduplicate by text content using a `seen` map.
+
+**Scrolling for more posts:** the activity page uses lazy loading. To load older posts, scroll down and re-extract:
+
+```bash
+node scripts/browser.js exec eval "(async function(){
+  var seen = {};
+  var out = [];
+  for (var s = 0; s < 5; s++) {
+    var posts = document.querySelectorAll('.feed-shared-update-v2__description, .update-components-text');
+    posts.forEach(function(p){
+      var t = p.innerText.trim();
+      if (t.length > 30 && !seen[t]) { seen[t] = true; out.push(t); }
+    });
+    window.scrollBy(0, 3000);
+    await new Promise(function(r){setTimeout(r, 2000)});
+  }
+  return JSON.stringify(out);
+})()" --tab linkedin
+```
+
+**Gotcha — URL redirect:** navigating to `/recent-activity/shares/` may redirect to `/recent-activity/all/`. This is fine — `/all/` includes shares. Don't rely on the URL staying as `/shares/`.
+
+**Gotcha — profile ID required:** you need your own profile ID (the `ACoAA...` string) or vanity name for the URL. Get it from any LinkedIn page:
+
+```bash
+node scripts/browser.js exec eval "(function(){
+  var ids = document.documentElement.outerHTML.match(/ACoAA[A-Za-z0-9_-]{5,}/g) || [];
+  var counts = {};
+  ids.forEach(function(id){counts[id] = (counts[id]||0) + 1});
+  return Object.entries(counts).sort(function(a,b){return b[1]-a[1]})[0][0];
+})()" --tab linkedin
+```
+
+Or use your vanity name: `https://www.linkedin.com/in/<vanity_name>/recent-activity/all/`
 
 ## Anti-patterns
 
