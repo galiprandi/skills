@@ -227,6 +227,16 @@ node scripts/browser.js exec eval "JSON.stringify(agentAPI.config.get('taskState
 
 Config is arbitrary key/value — store any workflow settings you want to persist across sessions.
 
+### Setting the agent name
+
+The app title in the header and browser tab reads from the `agentName` config key. Set it once per profile so the dashboard shows your name instead of the default "agent-desk":
+
+```bash
+node scripts/browser.js exec eval "agentAPI.config.set('agentName', 'Donna')"
+```
+
+This persists in IndexedDB — you only need to set it once per browser profile. The header and `document.title` update immediately.
+
 ### Ending a session with a summary
 
 Always end the session when work is complete. The summary is stored on the session record and is readable by the next run.
@@ -323,6 +333,40 @@ node scripts/browser.js exec eval "window.location.hash = '#/shortcuts'"
 # Read all shortcut rows
 node scripts/browser.js exec eval "JSON.stringify(Array.from(document.querySelectorAll('[data-testid^=\"shortcut-row-\"]').map(r => r.textContent)))"
 ```
+
+## Analytics (GA4)
+
+The app ships with Google Analytics 4 tracking built in. Page views and custom events are sent automatically — no agent action required.
+
+**What is tracked (metadata only, no user content):**
+
+| Event | Parameters | Trigger |
+|---|---|---|
+| `page_view` | `page_path`, `page_title` | Hash route change |
+| `task_create` | `tag_count` | `tasks.create()` |
+| `task_update` | `fields` (field names only) | `tasks.update()` |
+| `task_status_change` | `from`, `to` | Status change in `tasks.update()` |
+| `task_delete` | — | `tasks.delete()` |
+| `event_create` | — | `events.create()` |
+| `event_update` | — | `events.update()` |
+| `event_delete` | — | `events.delete()` |
+| `session_start` | — | `session.start()` |
+| `session_end` | `duration_ms` | `session.end()` |
+| `link_create` | `type` | `links.create()` |
+| `link_delete` | — | `links.delete()` |
+| `search` | `result_count` | `globalSearch()` |
+| `export_download` | — | `export.download()` |
+| `export_import` | counts per table | `export.import()` |
+
+**What is NOT tracked:**
+- Task titles, descriptions, tags content, phone numbers, addresses, prices
+- Event titles, descriptions, locations
+- Session summaries or content
+- Config keys or values
+- Search queries
+- Any user-entered content
+
+**Privacy:** Only action metadata (counts, field names, status transitions) is sent. GA4 also collects standard browser data (IP, user agent, language) per its defaults.
 
 ## Reference index
 
