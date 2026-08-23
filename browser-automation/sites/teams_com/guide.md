@@ -185,7 +185,11 @@ This pattern works for any web app, not just Teams. Use it to reverse-engineer u
 
 **Always prefer keyboard shortcuts over clicking buttons.** They are faster, more reliable, and don't depend on generated CSS classes or DOM structure that changes between updates.
 
-**Show shortcuts panel:** `Ctrl+.` (period) — opens the keyboard shortcuts dialog in Teams Web.
+**Show shortcuts panel:** `Ctrl+.` (period) — opens the keyboard shortcuts dialog in Teams Web. Use this to verify shortcuts are enabled and discover new ones.
+
+**Focus matters:** Some shortcuts (like `Alt+N`, `Ctrl+G`, `Alt+R`) require focus to be in the main Teams area, not in a search box or dialog. If a shortcut doesn't work, press `Esc` first to reset focus, then retry.
+
+**Verification:** After navigation shortcuts, check `document.title` — it changes to include the app name (e.g. "Chat", "Calendar", "Llamadas", "Actividad"). Wait 2-3 seconds for the SPA to render.
 
 ### General (Web app)
 
@@ -346,6 +350,64 @@ playwright-cli press Alt+r
 # Send message (in expanded compose)
 playwright-cli press Control+Enter
 ```
+
+## Navigating chats (UI)
+
+### Open a specific chat by name
+
+The chat list uses `[role="treeitem"]`. "Chats" section may be collapsed — click to expand first.
+
+```bash
+# 1. Go to Chat app
+playwright-cli press Control+Shift+2
+
+# 2. Wait for chat list to load
+playwright-cli eval "(async function(){
+  for (let i = 0; i < 30; i++) {
+    if (document.querySelectorAll('[role=\"treeitem\"]').length > 3) return 'ready';
+    await new Promise(r => setTimeout(r, 500));
+  }
+  return 'timeout';
+})()"
+
+# 3. Expand "Chats" if collapsed
+playwright-cli eval "(function(){
+  const chats = Array.from(document.querySelectorAll('[role=\"treeitem\"]')).find(i =>
+    i.offsetParent !== null && i.textContent.trim().startsWith('Chats')
+  );
+  if (chats) { chats.click(); return 'expanded'; }
+  return 'not_found';
+})()"
+
+# 4. Click the chat by name
+playwright-cli eval "(function(){
+  const chat = Array.from(document.querySelectorAll('[role=\"treeitem\"]')).find(i =>
+    i.offsetParent !== null && i.textContent.includes('Sprint review')
+  );
+  if (chat) { chat.click(); return 'clicked'; }
+  return 'not_found';
+})()"
+```
+
+### Read chat messages
+
+```bash
+# Get the message list text
+playwright-cli eval "(async function(){
+  await new Promise(r => setTimeout(r, 2000));
+  const text = document.body.innerText;
+  const idx = text.indexOf('Lista de mensajes');
+  if (idx !== -1) return text.substring(idx, idx + 4000);
+  // Fallback: look for message region
+  const region = document.querySelector('[role=\"main\"], [aria-label*=\"mensaje\"]');
+  if (region) return region.innerText.substring(0, 4000);
+  return 'no messages found';
+})()"
+```
+
+### Open chat tabs (files, notes, etc.)
+
+Use `Alt+1` through `Alt+9` to open tabs on the chat header.
 
 ## UI fallback (for short messages without special chars)
 
