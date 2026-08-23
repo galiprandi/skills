@@ -27,6 +27,78 @@ node scripts/browser.js open "https://web.whatsapp.com/" --headed
 
 The session persists in `.browser-profile` so subsequent opens are headless.
 
+## Keyboard shortcuts (PREFERRED over UI clicks)
+
+**Always prefer keyboard shortcuts over clicking buttons.** They are faster, more reliable, and don't depend on generated CSS classes or DOM structure that changes between updates.
+
+### Shortcuts (Windows/Linux)
+
+| Shortcut | Action | Notes |
+|---|---|---|
+| `Ctrl+Alt+N` | New chat | Opens "Nuevo chat" panel |
+| `Ctrl+Alt+Shift+N` | New group | |
+| `Ctrl+Alt+E` | Emoji panel | Requires compose box focused |
+| `Ctrl+Alt+G` | GIF panel | |
+| `Ctrl+Alt+S` | Sticker panel | |
+| `Ctrl+Alt+P` | Profile and About | Opens "Editar perfil" |
+| `Ctrl+Alt+,` | Settings | Opens settings panel |
+| `Ctrl+Alt+/` | Search | Focuses chat list search |
+| `Alt+K` | Extended search | Opens dialog "Busca chats, contactos y ajustes" |
+| `Ctrl+Alt+Shift+U` | Mark as unread | |
+| `Ctrl+Alt+Shift+M` | Mute chat | |
+| `Ctrl+Alt+Shift+E` | Archive chat | |
+| `Ctrl+Alt+Shift+P` | Pin chat | |
+| `Ctrl+Alt+L` | Lock screen | |
+| `Esc` | Close chat/panel | Closes any open dialog or panel |
+
+**Not working:**
+- `Ctrl+Alt+Shift+F` (Search in chat) — does not respond. Use the "Buscar" button in the conversation header instead.
+
+### Usage with playwright-cli
+
+```bash
+# New chat
+playwright-cli press Control+Alt+n
+
+# Extended search (most useful for finding chats)
+playwright-cli press Alt+k
+# Then type and Enter to open
+
+# Emoji panel (compose must be focused)
+playwright-cli press Control+Alt+e
+
+# Profile
+playwright-cli press Control+Alt+p
+
+# Settings
+playwright-cli press Control+Alt+Comma
+
+# Close any panel
+playwright-cli press Escape
+```
+
+## Detecting modals and panels
+
+**WhatsApp does not use `role="dialog"` or `innerText` consistently.** Using `eval` + `innerText` to detect if a modal opened is unreliable. Use the accessibility `snapshot` command instead.
+
+### Patterns in the accessibility snapshot
+
+| Modal/Panel | Snapshot pattern |
+|---|---|
+| Extended search (`Alt+K`) | `dialog` > `textbox "Busca chats, contactos y ajustes"` `[active]` |
+| Emoji panel (`Ctrl+Alt+E`) | `application` > `list` > `grid` + `textbox "Buscar emoji"` `[active]` |
+| Profile (`Ctrl+Alt+P`) | Second `banner` with `heading "Editar perfil"` |
+| New chat (`Ctrl+Alt+N`) | Second `banner` with `heading "Nuevo chat"` + `textbox` |
+| Settings (`Ctrl+Alt+,`) | Second `banner` with `heading "<user name>"` + `textbox "Buscar"` |
+
+**Key insight:** WhatsApp panels appear as a second `banner` element outside the main `banner` (which contains the nav). The `dialog` role is only used for Extended search.
+
+```bash
+# Check if a modal is open via snapshot
+node scripts/browser.js exec snapshot | head -20
+# Look for: dialog, second banner, application with grid
+```
+
 ## Core flows
 
 ### Open a conversation by phone number
@@ -40,6 +112,23 @@ node scripts/browser.js goto "https://web.whatsapp.com/send?phone=<PHONE>"
 Example: `https://web.whatsapp.com/send?phone=5491112345678`
 
 This creates or opens the conversation and focuses the compose box. Useful for starting new conversations without searching.
+
+### Open a conversation by name
+
+**Do not use `eval` + `click()` to open chats** — it often fails silently. Use playwright's `click` command with a text selector instead:
+
+```bash
+# Most reliable method
+node scripts/browser.js exec click "div[role=\"row\"] >> text=<CHAT_NAME>"
+```
+
+**Alternative:** Use `Alt+K` to search, type the name, and press Enter:
+
+```bash
+playwright-cli press Alt+k
+playwright-cli type "<chat name>"
+playwright-cli press Enter
+```
 
 ### Send a message
 
@@ -55,7 +144,9 @@ node scripts/browser.js exec click <send_button_ref>
 
 ### Read messages in a conversation
 
-Open the conversation, then extract messages from the panel:
+Open the conversation, then extract messages from the panel. WhatsApp uses virtual scrolling — only ~15 messages are in the DOM at any time. To get the full conversation, scroll up and collect.
+
+**Basic (visible messages only):**
 
 ```javascript
 async () => {
@@ -72,6 +163,48 @@ async () => {
 ```
 
 Direction detection: `.message-out` = sent by user, absence = received.
+
+**Full conversation (scroll-up collection):**
+
+Each message has a unique `data-testid="conv-msg-<ID>"`. Use a `Set` to deduplicate while scrolling up.
+
+```javascript
+async () => {
+  const panel = document.querySelector('[data-testid="conversation-panel-messages"]');
+  if (!panel) return 'no panel';
+
+  const allMsgs = new Set();
+
+  function collect() {
+    const msgs = panel.querySelectorAll('[data-testid^="conv-msg-"]');
+    msgs.forEach(m => {
+      const id = m.getAttribute('data-testid');
+      const text = m.innerText.trim();
+      if (text) allMsgs.add(id + '::' + text);
+    });
+  }
+
+  collect();
+
+  // Scroll up to load older messages
+  // 10 iterations × 800ms = ~8 seconds for ~189 messages
+  for (let i = 0; i < 10; i++) {
+    panel.scrollTop = 0;
+    await new Promise(r => setTimeout(r, 800));
+    collect();
+  }
+
+  // Parse back to array
+  const result = Array.from(allMsgs).map(m => {
+    const [id, ...textParts] = m.split('::');
+    return { id, text: textParts.join('::') };
+  });
+
+  return JSON.stringify({ total: result.length, messages: result });
+}
+```
+
+**Tuning:** Increase the loop count for longer conversations. Each iteration loads ~15-20 more messages. 10 iterations ≈ 189 messages. For very long chats, use 30-50 iterations.
 
 ### Detect image/audio/video messages
 
@@ -269,3 +402,7 @@ Tercer párrafo corto."
 - **Do NOT send long messages as a single wall of text.** Separate into paragraphs with `\n\n`.
 - **Do NOT play multiple voice notes and then try to extract them all.** The LRU cache may evict earlier blobs. Extract and transcribe one at a time.
 - **Do NOT assume a cache entry belongs to a specific conversation.** The cache is shared across all chats. Match by transcription content, not by cache index.
+- **Do NOT use `eval` + `innerText` to detect modals.** WhatsApp doesn't expose modal text via `innerText` reliably. Use `snapshot` instead.
+- **Do NOT use `eval` + `click()` to open chats.** It often fails silently. Use `playwright-cli click "div[role=\"row\"] >> text=<NAME>"` or `Alt+K` + search.
+- **Do NOT assume all official shortcuts work.** `Ctrl+Alt+Shift+F` (search in chat) does not respond. Test before relying on a shortcut.
+- **Do NOT click buttons when a keyboard shortcut exists** — prefer `press` over `eval` + click.
