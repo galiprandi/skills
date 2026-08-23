@@ -780,6 +780,131 @@ csrf = csrf ? csrf.split('=')[1].replace(/"/g,'') : '';
 - Always attach CV
 - No bullet points, no em-dashes, don't repeat JD keywords obviously
 
+## Publishing posts (feed posts, validated 2026-08-23)
+
+### Open the composer
+
+The share composer lives inside a **shadow DOM** (`#interop-outlet` → `shadowRoot`). All interactions must go through `shadowRoot.querySelector()`, not `document.querySelector()`.
+
+```bash
+# Navigate to feed
+node scripts/browser.js goto "https://www.linkedin.com/feed/"
+
+# Click "Start a post" (atomic eval — Rule 1)
+node scripts/browser.js exec eval "(() => { const els = Array.from(document.querySelectorAll('*')).filter(e => e.textContent.trim() === 'Start a post' && e.children.length === 0); if (els.length) { let el = els[0]; while (el && el.tagName !== 'BUTTON' && el.getAttribute('role') !== 'button') el = el.parentElement; (el || els[0]).click(); return 'clicked'; } return 'not_found'; })()"
+```
+
+### Type the post content (Quill editor)
+
+The composer uses **Quill.js** (`.ql-editor`), NOT tiptap. The tiptap `innerHTML` + `beforeinput` pattern from messaging does NOT work here — the "Post" button stays disabled because Quill's internal state is never updated.
+
+**What works:** `playwright-cli type` simulates real keyboard input and Quill registers it correctly.
+
+```bash
+# Wait for the editor to appear in the shadow DOM, then focus it
+node scripts/browser.js exec eval "(async () => {
+  for (let i = 0; i < 40; i++) {
+    let editors = document.querySelectorAll('div.ql-editor');
+    let editor = Array.from(editors).find(e => e.offsetParent !== null);
+    if (!editor) { const s = document.querySelector('#interop-outlet'); if (s && s.shadowRoot) editor = s.shadowRoot.querySelector('div.ql-editor'); }
+    if (editor) { editor.focus(); editor.click(); return 'focused'; }
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return 'timeout';
+})()"
+
+# Type the content (simulates real keyboard — Quill registers it)
+node scripts/browser.js exec type "Your post text here. Use \\n for line breaks."
+```
+
+**Limitation:** `playwright-cli type` does not handle multi-line text well (newlines are parsed as args). For long multi-paragraph posts, type the text in one line or use multiple `type` calls with `press Enter` between them:
+
+```bash
+node scripts/browser.js exec type "First paragraph"
+node scripts/browser.js exec press Enter
+node scripts/browser.js exec press Enter
+node scripts/browser.js exec type "Second paragraph"
+```
+
+**What does NOT work** (validated 2026-08-23):
+- `editor.innerHTML = '<p>...</p>'` + `InputEvent('beforeinput', {inputType: 'insertFromPaste'})` — text appears visually but "Post" button stays disabled (Quill internal state not updated)
+- `editor.dispatchEvent(new ClipboardEvent('paste', ...))` — same issue, text visible but button disabled
+- `document.execCommand('insertText', false, text)` — text appears but button stays disabled
+- `editor.innerText = text` + `InputEvent('input')` — same issue
+
+### Schedule a post for later
+
+After typing the content, the footer has a clock icon button to schedule.
+
+```bash
+# Click the schedule button (inside shadow DOM)
+node scripts/browser.js exec eval "(() => { const shadow = document.querySelector('#interop-outlet').shadowRoot; const btn = shadow.querySelector('button[aria-label=\"Schedule post\"]'); if (btn) { btn.click(); return 'clicked'; } return 'not_found'; })()"
+
+# Set date and time (inputs are in the shadow DOM)
+node scripts/browser.js exec eval "(() => {
+  const shadow = document.querySelector('#interop-outlet').shadowRoot;
+  const dateInput = shadow.querySelector('input[name=\"artdeco-date\"]');
+  const timeInput = shadow.querySelector('input[name=\"timepicker\"]');
+  dateInput.value = 'MM/DD/YYYY';
+  dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+  dateInput.dispatchEvent(new Event('change', { bubbles: true }));
+  timeInput.value = 'H:00 AM';
+  timeInput.dispatchEvent(new Event('input', { bubbles: true }));
+  timeInput.dispatchEvent(new Event('change', { bubbles: true }));
+  return JSON.stringify({ date: dateInput.value, time: timeInput.value });
+})()"
+
+# Click "Next" then "Schedule" (both in shadow DOM)
+node scripts/browser.js exec eval "(() => { const shadow = document.querySelector('#interop-outlet').shadowRoot; const btn = Array.from(shadow.querySelectorAll('button')).find(b => b.textContent.trim() === 'Next' && !b.disabled); if (btn) { btn.click(); return 'clicked Next'; } return 'not_found'; })()"
+
+# Wait a moment, then click "Schedule"
+node scripts/browser.js exec eval "(async () => { await new Promise(r => setTimeout(r, 1000)); const shadow = document.querySelector('#interop-outlet').shadowRoot; const btn = Array.from(shadow.querySelectorAll('button')).find(b => b.textContent.trim() === 'Schedule' && !b.disabled); if (btn) { btn.click(); return 'clicked Schedule'; } return 'not_found'; })()"
+```
+
+**Verification:** after scheduling, the page shows a toast: "Post scheduled. View scheduled posts".
+
+**Note:** Setting `dateInput.value` directly may not always update the calendar widget's internal state. If the post publishes immediately instead of at the scheduled time, click the day button in the calendar instead:
+
+```bash
+# Click a specific day in the calendar (aria-label format: "Day, Month DD, YYYY")
+node scripts/browser.js exec eval "(() => {
+  const shadow = document.querySelector('#interop-outlet').shadowRoot;
+  const dayBtn = Array.from(shadow.querySelectorAll('button')).find(b => b.getAttribute('aria-label') && b.getAttribute('aria-label').includes('Monday, August 24, 2026'));
+  if (dayBtn) { dayBtn.click(); return 'clicked'; } return 'not_found';
+})()"
+```
+
+### Publish immediately
+
+After typing content (and the "Post" button is enabled):
+
+```bash
+# Click "Post" (inside shadow DOM)
+node scripts/browser.js exec eval "(() => { const shadow = document.querySelector('#interop-outlet').shadowRoot; const btn = Array.from(shadow.querySelectorAll('button')).find(b => b.textContent.trim() === 'Post' && !b.disabled); if (btn) { btn.click(); return 'posted'; } return 'not_found_or_disabled'; })()"
+```
+
+### Delete a post
+
+Navigate to your activity page and delete from the control menu:
+
+```bash
+# Go to your activity
+node scripts/browser.js goto "https://www.linkedin.com/in/<profile_id>/recent-activity/all/"
+
+# Find the post by text content, open its control menu
+node scripts/browser.js exec eval "(() => { const btn = document.querySelector('button[aria-label=\"Open control menu for post by <Your Name>\"]'); if (btn) { btn.click(); return 'clicked'; } return 'not_found'; })()"
+
+# Click "Delete post" (use find + click with refs)
+node scripts/browser.js exec find "Delete post"
+# then click the ref
+
+# Confirm in the dialog
+node scripts/browser.js exec find "Delete"
+# then click the ref (the dialog's Delete button, not the menu item)
+```
+
+**Verification:** the post text no longer appears in the activity page, and a toast confirms deletion.
+
 ## Anti-patterns
 
 - **Don't** open `/messaging/` and click a sidebar name to send a message — LinkedIn redirects to the last active thread and sidebar clicks may not navigate. The composer belongs to whatever thread is in the URL, not the name you clicked. Use the bulk inbox fetch to get the thread ID, then navigate directly to `/messaging/thread/<thread_id>/` or use the Voyager API with the thread ID. A message sent to the wrong thread cannot be unsent.
@@ -794,6 +919,8 @@ csrf = csrf ? csrf.split('=')[1].replace(/"/g,'') : '';
 - **Don't** retry captchas in a loop — stop and ask the user
 - **Don't** try to connect with 3rd+ connections — they can't be invited
 - **Don't** retry custom notes when the weekly limit is exhausted — send without a note
+- **Don't** use `innerHTML` + `beforeinput`/`paste`/`execCommand` on the share composer (Quill) — the text appears visually but the "Post" button stays disabled because Quill's internal state is never updated. Use `playwright-cli type` instead (simulates real keyboard input)
+- **Don't** use `document.querySelector()` for the share composer — it lives inside `#interop-outlet`'s shadow DOM. Always use `document.querySelector('#interop-outlet').shadowRoot.querySelector()`
 
 ## API reference
 
