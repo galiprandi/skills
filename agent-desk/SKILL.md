@@ -237,18 +237,91 @@ node scripts/browser.js exec eval "JSON.stringify(agentAPI.session.end({summary:
 
 ## Views
 
-The app has three views. The API works regardless of which view is active — you rarely need to switch views to get work done. Switch views only when the user asks to see something or when you need to read view-specific LLM instructions.
+The app has four views. The API works regardless of which view is active — you rarely need to switch views to get work done. Switch views only when the user asks to see something or when you need to read view-specific LLM instructions.
 
 | View | What it shows | What the agent can do |
 |---|---|---|
 | **Dashboard** | Active session, recent tasks, upcoming events, quick stats | Read the current state at a glance; start/end sessions; jump to Tasks or Calendar |
 | **Tasks** | Full task list with filters by status/priority/tag/date | Create, update, delete, filter tasks; manage custom states via config |
 | **Calendar** | Events on a calendar grid, optionally showing linked tasks | Create, update, delete events; filter by date range; see task→event links |
+| **Shortcuts** | Reference of all keyboard shortcuts, grouped by category | Read the full shortcut list; discover available navigation and action keys |
 
 Each view hides LLM-targeted examples in the DOM at `[data-testid="llm-instructions"]`. Read it when you land on a view:
 
 ```bash
 node scripts/browser.js exec eval "document.querySelector('[data-testid=\"llm-instructions\"]').textContent"
+```
+
+## Keyboard shortcuts
+
+The app has a full set of keyboard shortcuts for navigation and actions (ADR-0017). They are implemented with `@tanstack/react-hotkeys` and registered globally. The full list is visible in-app at the `/shortcuts` route.
+
+### Discoverability
+
+The app surfaces the shortcuts in three visible places so agents and humans can discover them:
+
+1. **Dashboard banner** — a prominent, dismissible banner at the top of the Dashboard view (`[data-testid="shortcuts-hint-banner"]`) that says "Press ? to see all keyboard shortcuts" with a `?` key cap and a "View shortcuts" button. Dismissing it sets `localStorage["agent-desk-shortcuts-hint-dismissed"] = "true"`.
+2. **Header badge** — a persistent `?` badge next to the app title in the header (`[data-testid="header-shortcuts-hint"]`), always visible on desktop widths (hidden on mobile).
+3. **Shortcuts nav link** — a "Shortcuts" link with a keyboard icon in the header nav (`[data-testid="nav-shortcuts"]`).
+
+Press `?` (Shift+/) at any time to navigate directly to the shortcuts reference page.
+
+### Navigation (vim-style sequences)
+
+Press the first key, then the second within 1 second:
+
+| Keys | Action |
+|---|---|
+| `g d` | Go to Dashboard |
+| `g t` | Go to Tasks |
+| `g c` | Go to Calendar |
+| `g s` | Go to Shortcuts |
+| `Esc` | Back to Dashboard |
+
+### Actions
+
+| Keys | Action |
+|---|---|
+| `?` | Show shortcuts (navigate to /shortcuts) |
+| `n t` | New task (navigates to Tasks + opens dialog) |
+| `n e` | New event (navigates to Calendar + opens dialog) |
+| `s` | Start session |
+| `x` | End session |
+| `t` | Toggle theme |
+| `Mod+E` | Export backup (Cmd+E on Mac, Ctrl+E elsewhere) |
+| `Mod+I` | Import backup (Cmd+I on Mac, Ctrl+I elsewhere) |
+
+### Triggering shortcuts via eval (CustomEvents)
+
+Agents can trigger the same actions without pressing keys by dispatching CustomEvents on `window`. This is useful when the agent wants to open a dialog or toggle the theme programmatically:
+
+```bash
+# Open the new task dialog (navigates to /tasks first)
+node scripts/browser.js exec eval "window.dispatchEvent(new CustomEvent('agent-desk:new-task'))"
+
+# Open the new event dialog (navigates to /calendar first)
+node scripts/browser.js exec eval "window.dispatchEvent(new CustomEvent('agent-desk:new-event'))"
+
+# Toggle light/dark theme
+node scripts/browser.js exec eval "window.dispatchEvent(new CustomEvent('agent-desk:toggle-theme'))"
+
+# Trigger export backup download
+node scripts/browser.js exec eval "window.dispatchEvent(new CustomEvent('agent-desk:export-backup'))"
+
+# Trigger import backup file picker
+node scripts/browser.js exec eval "window.dispatchEvent(new CustomEvent('agent-desk:import-backup'))"
+```
+
+### Reading the shortcuts list from the DOM
+
+The shortcuts view at `/shortcuts` renders the full list with `data-testid` attributes for each row:
+
+```bash
+# Navigate to shortcuts
+node scripts/browser.js exec eval "window.location.hash = '#/shortcuts'"
+
+# Read all shortcut rows
+node scripts/browser.js exec eval "JSON.stringify(Array.from(document.querySelectorAll('[data-testid^=\"shortcut-row-\"]').map(r => r.textContent)))"
 ```
 
 ## Reference index
