@@ -164,6 +164,108 @@ playwright-cli eval "(function(){
 })()"
 ```
 
+### UI: read email content
+
+When an email is open, the content is in `[role="main"]`:
+
+```bash
+playwright-cli eval "(async function(){
+  await new Promise(r=>setTimeout(r,2000));
+  const body = document.querySelector('[role=main]');
+  if (body) return body.innerText.substring(0, 3000);
+  return 'no body';
+})()"
+```
+
+**Note:** Row selector `tr` works without classes too — `tr.zA` (read) and `tr.zE` (unread) are more specific, but plain `tr` with an `innerText.length` filter is useful when classes haven't loaded yet.
+
+## Archiving emails
+
+### Single email (PREFERRED: keyboard shortcut)
+
+The fastest way to archive is the `e` key. Select the email first with `x`, or have it open:
+
+```bash
+# If email is open in reading pane, just press e
+playwright-cli press e
+
+# Or select from list then archive
+playwright-cli press x
+playwright-cli press e
+```
+
+### Bulk archive
+
+Select multiple checkboxes then press `e`:
+
+```bash
+playwright-cli eval "(function(){
+  const rows = document.querySelectorAll('tr');
+  const targets = ['sender1', 'sender2', 'sender3'];
+  let clicked = 0;
+  for (const t of targets) {
+    const row = Array.from(rows).find(r => r.innerText.includes(t));
+    if (row) {
+      const cb = row.querySelector('[role=checkbox]');
+      if (cb && cb.getAttribute('aria-checked') !== 'true') { cb.click(); clicked++; }
+    }
+  }
+  return 'selected ' + clicked;
+})()"
+
+# Then archive all selected
+playwright-cli press e
+```
+
+### Archive via button (fallback)
+
+If keyboard shortcuts don't work, find the archive button:
+
+```bash
+playwright-cli eval "(function(){
+  const btn = document.querySelector('div[role=button][aria-label*=\"Archivar\"], div[role=button][aria-label*=\"Archive\"]');
+  if (btn) { btn.click(); return 'archived'; }
+  return 'not_found';
+})()"
+```
+
+## Unsubscribing
+
+Gmail shows a native "Darse de baja" / "Unsubscribe" link next to the sender for supported senders.
+
+```bash
+# 1. Open the email
+# 2. Click the "Darse de baja" / "Unsubscribe" span next to sender
+playwright-cli eval "(function(){
+  const span = Array.from(document.querySelectorAll('span')).find(s =>
+    s.offsetParent !== null && (s.textContent.trim() === 'Darse de baja' || s.textContent.trim() === 'Unsubscribe')
+  );
+  if (span) { span.click(); return 'clicked'; }
+  return 'not_found';
+})()"
+
+# 3. Wait for confirmation dialog
+playwright-cli eval "(async function(){
+  for (let i = 0; i < 25; i++) {
+    const dialog = document.querySelector('[role=dialog]');
+    if (dialog && (dialog.innerText.includes('Anular suscripción') || dialog.innerText.includes('Unsubscribe'))) return 'dialog_ready';
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return 'timeout';
+})()"
+
+# 4. Click confirm button in dialog
+playwright-cli eval "(function(){
+  const btns = Array.from(document.querySelectorAll('button')).filter(b =>
+    b.offsetParent !== null && (b.textContent.includes('Anular suscripción') || b.textContent.includes('Unsubscribe'))
+  );
+  if (btns.length > 0) { btns[btns.length - 1].click(); return 'confirmed'; }
+  return 'not_found';
+})()"
+```
+
+**Verification:** After confirming, Gmail shows "Te has dado de baja de..." / "You've unsubscribed from..." near the sender name.
+
 ## Composing emails (validated empirically 2026-08-10)
 
 Gmail compose is **NOT** an iframe. It is `div[role=dialog]` in the main document, so `playwright-cli` can access all elements directly.
@@ -462,8 +564,20 @@ Gmail has extensive keyboard shortcuts. They work with `playwright-cli press <ke
 | `a` | Reply all |
 | `f` | Forward email |
 | `m` | Mute thread |
+| `z` | Undo last action |
 | `Shift+I` | Mark as read |
 | `Shift+U` | Mark as unread |
+| `/` | Search mail |
+| `Shift+/` | Show keyboard shortcut help |
+
+### Composition shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+Enter` / `⌘+Enter` | Send email |
+| `Ctrl+Shift+C` / `⌘+Shift+C` | Add CC |
+| `Ctrl+Shift+B` / `⌘+Shift+B` | Add BCC |
+| `Ctrl+K` / `⌘+K` | Insert link |
 
 ### Thread navigation
 
@@ -607,3 +721,4 @@ Gmail supports multiple accounts in the same browser. The URL pattern includes t
 - **Don't** try to log in programmatically — open headed and let the user log in
 - **Don't** use `type` for multiline body text — use `fill <ref>` or eval with native setter
 - **Don't** navigate to `#inbox` expecting all emails — Gmail splits into categories, use `#all`
+- **Don't** archive emails without explicit user confirmation — always ask first
