@@ -66,6 +66,7 @@ Before automating a specific web app, **read the corresponding guide** in `sites
 | Teamtailor | `sites/teamtailor_com/guide.md` | Before applying to jobs on Teamtailor-based career sites |
 | Humand.co | `sites/humand_co/guide.md` | Before applying to jobs on Humand.co-based career sites |
 | Reddit | `sites/reddit_com/guide.md` | Before any Reddit operation (reading posts/comments, posting submissions, replying to comments, posting in megathreads) |
+| Google Maps | `sites/google_com/maps-guide.md` | Before any Google Maps operation (search, directions, navigation, layers) |
 
 **How to load:** read the file with your read tool. Example: `read .agents/skills/browser-automation/sites/gmail_com/guide.md`
 
