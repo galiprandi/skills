@@ -27,6 +27,118 @@ node scripts/browser.js open "https://www.facebook.com/" --headed
 
 The session persists in `.browser-profile`. Do NOT attempt to log in programmatically with user credentials.
 
+## Keyboard shortcuts (PREFERRED over UI clicks)
+
+**Always prefer keyboard shortcuts over clicking buttons.** They are faster, more reliable, and don't depend on generated CSS classes that change between updates.
+
+**Show all shortcuts:** `Shift+?` or `F1` — opens `dialog "Todos los métodos abreviados de teclado de Facebook"`.
+
+**Important:** Single-character shortcuts (`j`, `k`, `l`, `c`, `p`, `s`, `o`, `q`, `r`, `f`, `x`, `e`) are **disabled by default**. They require enabling "Métodos abreviados de un solo carácter" in the shortcuts dialog (there's a switch at the bottom). Shortcuts with modifiers (Alt, Ctrl, Shift) work without enabling this setting.
+
+### Global
+
+| Shortcut | Action |
+|---|---|
+| `Shift+?` or `F1` | Show keyboard shortcuts dialog |
+| `Ctrl+B` | Report a problem |
+| `/` | Search Facebook (requires single-char enabled) |
+
+### Chat / Messenger
+
+| Shortcut | Action |
+|---|---|
+| `Alt+Ctrl+W` | Write message in current chat |
+| `Alt+Ctrl+C` | Go to chat list |
+| `Ctrl+Shift+M` | Go to current chat messages |
+| `Alt+Down` | Next chat |
+| `Alt+Up` | Previous chat |
+| `Alt+Ctrl+N` | New chat |
+| `Alt+Ctrl+S` | Search Messenger |
+| `l` | React to message (single-char) |
+| `r` | Reply to message (single-char) |
+| `f` | Forward message (single-char) |
+| `x` | Delete message (single-char) |
+
+### Feed
+
+| Shortcut | Action |
+|---|---|
+| `Enter` | See more of selected story |
+| `c` | Comment (single-char) |
+| `j` | Next post (single-char) |
+| `k` | Previous post (single-char) |
+| `l` | Like/unlike (single-char) |
+| `o` | Open attachment (single-char) |
+| `p` | New post (single-char) |
+| `q` | Search Messenger contacts (single-char) |
+| `s` | Share post (single-char) |
+
+### Photo albums
+
+| Shortcut | Action |
+|---|---|
+| `f` | Toggle fullscreen (single-char) |
+| `j` | Previous photo (single-char) |
+| `k` | Next photo (single-char) |
+| `l` | Like photo (single-char) |
+
+### Communities / Groups
+
+| Shortcut | Action |
+|---|---|
+| `Alt+Left` | Previous video |
+| `Alt+Right` | Next video |
+| `Alt+Up` | Previous pinned group |
+| `Alt+Down` | Next pinned group |
+| `Ctrl+/` | Search communities |
+| `e` | Create event (single-char) |
+
+### Usage with playwright-cli
+
+```bash
+# Show keyboard shortcuts
+playwright-cli press Shift+?
+
+# New chat
+playwright-cli press Alt+Control+n
+
+# Search Messenger
+playwright-cli press Alt+Control+s
+
+# Next/previous chat
+playwright-cli press Alt+ArrowDown
+playwright-cli press Alt+ArrowUp
+
+# Search communities
+playwright-cli press Control+Slash
+```
+
+### Enabling single-character shortcuts
+
+Single-character shortcuts are disabled by default. To enable:
+
+1. Open the shortcuts dialog (`Shift+?`)
+2. Find the switch "Métodos abreviados de un solo carácter" at the bottom
+3. Toggle it on
+
+```bash
+# Open shortcuts dialog
+playwright-cli press Shift+?
+# The switch is at the bottom of the dialog — click it via snapshot ref
+```
+
+## Detecting modals
+
+Facebook uses `dialog` role for the shortcuts panel:
+
+| Modal | Snapshot pattern |
+|---|---|
+| Keyboard shortcuts (`Shift+?`) | `dialog "Todos los métodos abreviados de teclado de Facebook"` |
+
+```bash
+node scripts/browser.js exec snapshot | grep "dialog"
+```
+
 ## Core flows
 
 ### Open a group
@@ -164,3 +276,5 @@ async () => {
 - **Do NOT attempt to log in programmatically.** Always use headed mode for manual login.
 - **Do NOT scrape without keyword filtering.** Open groups contain spam and irrelevant content.
 - **Do NOT forget to sort by recency.** Default sort is algorithmic, not chronological.
+- **Do NOT assume single-character shortcuts work.** They are disabled by default. Enable them in the shortcuts dialog (`Shift+?`) first, or use modifier-based shortcuts which work without enabling.
+- **Do NOT click buttons when a keyboard shortcut exists** — prefer `press` over `eval` + click. Modifier-based shortcuts (Alt, Ctrl, Shift) work without enabling single-char mode.
