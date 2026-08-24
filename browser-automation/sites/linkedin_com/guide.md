@@ -967,23 +967,71 @@ csrf = csrf ? csrf.split('=')[1].replace(/"/g,'') : '';
 - Always attach CV
 - No bullet points, no em-dashes, don't repeat JD keywords obviously
 
-## Publishing posts (feed posts, validated 2026-08-23)
+## Publishing posts (feed posts, validated 2026-08-24)
+
+### Critical rules for posting
+
+1. **SIEMPRE verificar el estado del modal antes de escribir.** Antes de tipear, hacer un snapshot y confirmar que el editor está vacío. Si ya tiene texto, NO escribir de nuevo.
+2. **Nunca asumir que el modal se cerró.** El `type` con saltos de línea puede causar que el modal se cierre o que el texto se duplique. Después de escribir, verificar con snapshot que el texto está cargado correctamente.
+3. **El botón "Post" puede estar en un dialog regular o en un shadow DOM.** Verificar cuál de los dos está activo antes de interactuar.
+4. **No re-abrir el modal si ya está abierto con texto.** Si el usuario dice que el modal está abierto, hacer snapshot primero y verificar.
 
 ### Open the composer
 
-The share composer lives inside a **shadow DOM** (`#interop-outlet` → `shadowRoot`). All interactions must go through `shadowRoot.querySelector()`, not `document.querySelector()`.
+LinkedIn tiene dos variantes del composer de posts:
+
+**Variante A: Modal dialog (validado 2026-08-24)**
+El modal aparece como un `dialog` con role="dialog" y contiene un textbox "Text editor for creating content".
 
 ```bash
 # Navigate to feed
-node scripts/browser.js goto "https://www.linkedin.com/feed/"
+node scripts/browser.js goto "https://www.linkedin.com/feed/" --tab linkedin
 
-# Click "Start a post" (atomic eval — Rule 1)
+# Click "Start a post"
 node scripts/browser.js exec eval "(() => { const els = Array.from(document.querySelectorAll('*')).filter(e => e.textContent.trim() === 'Start a post' && e.children.length === 0); if (els.length) { let el = els[0]; while (el && el.tagName !== 'BUTTON' && el.getAttribute('role') !== 'button') el = el.parentElement; (el || els[0]).click(); return 'clicked'; } return 'not_found'; })()"
+
+# Wait for the modal dialog to appear
+sleep 3
+
+# VERIFY the modal is open and the editor is empty BEFORE typing
+node scripts/browser.js exec snapshot --tab linkedin
+# Look for: dialog with "Create post modal" heading and textbox "Text editor for creating content"
+# If the textbox already has paragraph children with text, DO NOT type again
 ```
 
-### Type the post content (Quill editor)
+**Variante B: Shadow DOM composer (validado 2026-08-23)**
+El composer vive dentro de un shadow DOM (`#interop-outlet` → `shadowRoot`).
 
-The composer uses **Quill.js** (`.ql-editor`), NOT tiptap. The tiptap `innerHTML` + `beforeinput` pattern from messaging does NOT work here — the "Post" button stays disabled because Quill's internal state is never updated.
+```bash
+# Click "Start a post" (same as above)
+# Then check for shadow DOM:
+node scripts/browser.js exec eval "(() => { const s = document.querySelector('#interop-outlet'); return s && s.shadowRoot ? 'shadow DOM found' : 'no shadow DOM'; })()"
+```
+
+### Type the post content
+
+**Para la variante A (modal dialog):**
+
+El editor es un `contenteditable` div dentro del dialog. `playwright-cli type` funciona pero los saltos de línea pueden causar problemas.
+
+```bash
+# Click the textbox to focus it (use the ref from snapshot)
+node scripts/browser.js exec click --tab linkedin "<textbox_ref>"
+
+# Type the content — usar \n para saltos de línea
+node scripts/browser.js exec type --tab linkedin "Your post text here.
+
+Second paragraph."
+
+# VERIFY after typing that the text loaded correctly
+node scripts/browser.js exec snapshot --tab linkedin
+# Check that the textbox has paragraph children with the expected text
+# If text is missing or duplicated, STOP and ask the user
+```
+
+**Para la variante B (Quill editor en shadow DOM):**
+
+El composer usa **Quill.js** (`.ql-editor`), NOT tiptap. The tiptap `innerHTML` + `beforeinput` pattern from messaging does NOT work here — the "Post" button stays disabled because Quill's internal state is never updated.
 
 **What works:** `playwright-cli type` simulates real keyboard input and Quill registers it correctly.
 
@@ -1064,6 +1112,24 @@ node scripts/browser.js exec eval "(() => {
 ### Publish immediately
 
 After typing content (and the "Post" button is enabled):
+
+**Variante A (modal dialog):**
+
+```bash
+# VERIFY the modal is still open and text is correct before clicking Post
+node scripts/browser.js exec snapshot --tab linkedin
+# Confirm: dialog with "Create post modal", textbox has all paragraphs, button "Post" is present and not disabled
+
+# Click "Post" (use the ref from snapshot)
+node scripts/browser.js exec click --tab linkedin "<post_button_ref>"
+
+# VERIFY the post was published
+sleep 5
+node scripts/browser.js exec snapshot --tab linkedin
+# The modal should be gone and the post should appear in the feed
+```
+
+**Variante B (shadow DOM):**
 
 ```bash
 # Click "Post" (inside shadow DOM)
