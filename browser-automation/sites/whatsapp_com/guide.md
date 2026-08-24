@@ -257,6 +257,46 @@ async () => {
 }
 ```
 
+## Sending images and files
+
+### The problem with playwright-cli upload and drop
+
+**Problem:** `playwright-cli upload` requires a native file chooser modal to be open. WhatsApp Web's "Adjuntar > Fotos y videos" button triggers a native OS file dialog. When this dialog opens, playwright-cli loses control of the session and the browser becomes a zombie (unresponsive, gets cleaned up).
+
+`playwright-cli drop` does not work with WhatsApp's hidden `input[type="file"]` element either.
+
+**Solution:** Use `run-code` with `page.locator('input[type="file"]').setInputFiles()` to set the file directly on the hidden input, bypassing the native dialog entirely.
+
+```bash
+# 1. Open the conversation first
+node scripts/browser.js exec click "div[role=\"row\"] >> text=<CHAT_NAME>"
+
+# 2. Set the file on the hidden input (no native dialog needed)
+node scripts/browser.js exec run-code "(async (page) => { const input = await page.locator('input[type=\"file\"]').first(); await input.setInputFiles('/absolute/path/to/file.png'); return 'file set'; })"
+
+# 3. Wait for the preview + caption box to appear
+sleep 3
+
+# 4. Write the caption (use Shift+Enter for line breaks, NOT Enter)
+node scripts/browser.js exec run-code "(async (page) => { const caption = await page.locator('div[contenteditable][data-tab=\"10\"]'); await caption.focus(); await page.keyboard.type('First line.'); await page.keyboard.press('Shift+Enter'); await page.keyboard.type('Second line.'); return 'done'; })"
+
+# 5. Send (snapshot first to get fresh ref)
+node scripts/browser.js exec snapshot
+# Look for: button "Enviar 1 seleccionado" or button "Enviar"
+node scripts/browser.js exec click <send_ref>
+```
+
+**Key details:**
+- WhatsApp has one hidden `input[type="file"]` with `accept="image/*"`. For documents, the accept attribute changes.
+- After `setInputFiles`, WhatsApp shows a preview with a caption box (`div[contenteditable][data-tab="10"]`) and an "Enviar" button.
+- Use `Shift+Enter` for line breaks in the caption. Plain `Enter` may send the message prematurely or lose the first line.
+- The send button text changes: "Enviar 1 seleccionado" when a file is attached, "Enviar" when only text.
+
+**Anti-pattern:**
+- Do NOT click "Adjuntar" > "Fotos y videos" via `eval` + `click()`. The native file dialog crashes playwright-cli.
+- Do NOT use `playwright-cli upload` — it requires the native dialog and will zombie the session.
+- Do NOT use `playwright-cli drop` on `input[type="file"]` — it silently fails.
+
 ## Gotchas and anti-patterns
 
 ### Unread badges are NOT reliable for monitoring
@@ -324,7 +364,7 @@ Messages include timestamps in the text content (e.g. `21:43`). When extracting 
 
 ## Validation
 
-**Validated:** 2026-08-21 against live WhatsApp Web.
+**Validated:** 2026-08-24 against live WhatsApp Web.
 
 ## Adding a contact to a WhatsApp list
 
