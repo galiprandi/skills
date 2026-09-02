@@ -1,6 +1,7 @@
 ---
 name: outlook
 description: Automate Outlook on the web (Microsoft 365) with playwright-cli. Covers reading inbox, archiving, replying, composing, searching, folder navigation, and keyboard shortcuts. Use when checking email, sending messages, managing inbox, or extracting email data in Outlook Web. Part of the browser-automation skill.
+verified: 2026-09-02
 ---
 
 # Outlook (Web) Automation

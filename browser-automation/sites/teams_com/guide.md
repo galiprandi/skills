@@ -1,3 +1,9 @@
+---
+name: teams
+description: Automate Microsoft Teams via internal chatsvc API for messaging, navigation, and chat management.
+verified: 2026-09-02
+---
+
 # Microsoft Teams Automation
 
 Automate Microsoft Teams via internal chatsvc API. Token is extracted from browser localStorage, then used to send/delete messages via REST. No UI interaction needed for messaging.

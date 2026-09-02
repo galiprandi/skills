@@ -1,3 +1,9 @@
+---
+name: teamtailor
+description: Automate job applications on Teamtailor-based career sites via browser UI or HTTP API.
+verified: 2026-09-02
+---
+
 # Teamtailor Automation
 
 Automate job applications on Teamtailor-based career sites. Teamtailor is a popular ATS used by many companies. Applications can be submitted via browser UI or directly via HTTP API.

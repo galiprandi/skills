@@ -19,6 +19,7 @@
  *   node .agents/skills/browser-automation/scripts/browser.js save-state [--filename <path>]
  *   node .agents/skills/browser-automation/scripts/browser.js load-state [--filename <path>]
  *   node .agents/skills/browser-automation/scripts/browser.js status
+ *   node .agents/skills/browser-automation/scripts/browser.js guides
  *   node .agents/skills/browser-automation/scripts/browser.js contribute
  *   node .agents/skills/browser-automation/scripts/browser.js -h|--help
  *
@@ -90,6 +91,21 @@ function normalizeUrl(url) {
     return url;
   } catch {
     return null;
+  }
+}
+
+function checkPlaywrightCli() {
+  try {
+    execFileSync('playwright-cli', ['--version'], {
+      encoding: 'utf8',
+      timeout: 3000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch {
+    fail(`playwright-cli is not installed or not in PATH.\n` +
+      `Install it with:\n` +
+      `  npm install -g @playwright/cli@latest\n` +
+      `  playwright-cli install-browser`);
   }
 }
 
@@ -657,6 +673,9 @@ function usage() {
   node ${scriptPath} status
     Show browser_mode config + active sessions + tab mapping.
 
+  node ${scriptPath} guides
+    List all documented sites and whether they have a guide.md.
+
   node ${scriptPath} contribute
     Print instructions and template for contributing learnings back to the skill.
 
@@ -692,6 +711,12 @@ function main() {
   }
 
   const { command, positionals, flags, options } = parsed;
+
+  // Commands that don't need playwright-cli installed
+  const standaloneCommands = new Set(['contribute', 'guides', 'status', 'help']);
+  if (!standaloneCommands.has(command)) {
+    checkPlaywrightCli();
+  }
 
   switch (command) {
 
@@ -862,6 +887,41 @@ function main() {
       console.log(`[browser] Active sessions: ${sessions.length ? sessions.join(', ') : 'none'}`);
       console.log(`[browser] Profile: ${PROFILE_DIR}`);
       console.log(`[browser] Tabs: ${Object.keys(tabs.tabs).length ? JSON.stringify(tabs.tabs) : 'none'}`);
+      return;
+    }
+
+    case 'guides': {
+      try {
+        const entries = fs.readdirSync(SITES_DIR, { withFileTypes: true });
+        const sites = entries
+          .filter((e) => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'CONTRIBUTING.md')
+          .map((dir) => {
+            const dirPath = path.join(SITES_DIR, dir.name);
+            const guidePath = path.join(dirPath, 'guide.md');
+            const hasGuide = fs.existsSync(guidePath);
+            const files = fs.readdirSync(dirPath).filter((f) => f.endsWith('.md'));
+            return {
+              slug: dir.name,
+              hasGuide,
+              files: files.length,
+            };
+          })
+          .filter((s) => s.files > 0);
+
+        if (sites.length === 0) {
+          console.log('[browser] No site guides found.');
+          return;
+        }
+
+        console.log('[browser] Available site guides:\n');
+        for (const site of sites) {
+          const guideStatus = site.hasGuide ? 'guide.md' : `${site.files} file(s), no guide.md`;
+          console.log(`  ${site.slug.padEnd(30)} ${guideStatus}`);
+        }
+        console.log(`\n[browser] ${sites.length} site(s) documented. ${sites.filter((s) => s.hasGuide).length} with guide.md.`);
+      } catch (e) {
+        fail(`Failed to list guides: ${e.message}`);
+      }
       return;
     }
 

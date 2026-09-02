@@ -1,6 +1,7 @@
 ---
 name: gmail
 description: Automate Gmail with playwright-cli. Covers reading inbox via Atom feed, composing emails (with validated selectors), replying, searching, archiving, labeling, keyboard shortcuts, and bulk delete. Use when checking email, sending messages, managing inbox, or extracting email data. Part of the browser-automation skill.
+verified: 2026-09-02
 ---
 
 # Gmail Automation

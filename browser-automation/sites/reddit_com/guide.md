@@ -1,6 +1,7 @@
 ---
 name: reddit
 description: Automate Reddit with playwright-cli. Covers navigating posts, reading comments, posting top-level submissions, replying to comments, posting in megathreads, and extracting post/comment data. Use when checking post status, responding to comments, or submitting to subreddits.
+verified: 2026-09-02
 ---
 
 # Reddit Automation

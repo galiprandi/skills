@@ -1,6 +1,7 @@
 ---
 name: vea
 description: Automate Vea supermercado (vea.com.ar). Covers login via Google, delivery mode selection, product search, adding to cart. Vea uses VTEX IO platform with React components. Use when buying groceries online on Vea Argentina.
+verified: 2026-09-02
 ---
 
 # Vea Supermercado Automation

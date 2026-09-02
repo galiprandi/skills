@@ -115,7 +115,9 @@ In all other cases, use the keyboard.
 
 When you open a site with `browser.js open`, `goto`, or `tab-new`, the script **automatically injects the corresponding site guide** into your context. You do not need to read it manually — it appears in the command output.
 
-If a site has a guide, you will see it. If you don't see a guide, the site is not documented — use the generic patterns in this file.
+If a site has a guide, you will see it. If you don't see a guide, the site is not documented — the wrapper injects `LEARN.md` with instructions on how to learn and contribute a guide.
+
+**Guide freshness:** Each guide has a `verified` date in its frontmatter. If the date is old, selectors may have drifted — be cautious and contribute updates if you find broken paths.
 
 **Available guides:**
 

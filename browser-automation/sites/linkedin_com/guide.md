@@ -1,6 +1,7 @@
 ---
 name: linkedin
 description: Automate LinkedIn with playwright-cli. Covers messaging (send text + attachments via Voyager endpoints), bulk inbox fetch, profile navigation, job search, Easy Apply, connection requests, notifications, saved jobs, and the tiptap editor fix. Use when sending LinkedIn messages, reading inbox, applying to jobs, connecting with people, or extracting profile data. Part of the browser-automation skill.
+verified: 2026-09-02
 ---
 
 # LinkedIn Automation

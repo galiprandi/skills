@@ -1,6 +1,7 @@
 ---
 name: facebook
 description: Automate Facebook groups for post scraping, member directory extraction, and content monitoring.
+verified: 2026-09-02
 ---
 
 # Facebook Groups Automation Guide

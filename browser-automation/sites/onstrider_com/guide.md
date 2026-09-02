@@ -1,3 +1,9 @@
+---
+name: strider
+description: Automate Strider (onstrider.com) LATAM job platform: profile updates, work experience, and multi-step job applications.
+verified: 2026-09-02
+---
+
 # Strider (onstrider.com) — Automation Guide
 
 **Validated:** 2026-08-17

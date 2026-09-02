@@ -92,12 +92,13 @@ This prints the learning template and instructions for creating a guide file.
 
 A guide that future agents can use immediately has:
 
-1. **Keyboard shortcuts section at the top** — every shortcut and keypath sequence, formatted as a table or list
-2. **Bad patterns section** — what doesn't work and why, with workarounds
-3. **Stable selectors** — the ones that survive updates
-4. **Internal API endpoints** — if discovered, with request/response shapes (scrubbed)
-5. **Login flow** — how to get in, what to watch for
-6. **Gotchas** — edge cases, rate limits, anti-bot measures
+1. **Frontmatter with `verified` date** — `verified: YYYY-MM-DD` so agents know how fresh the guide is
+2. **Keyboard shortcuts section at the top** — every shortcut and keypath sequence, formatted as a table or list
+3. **Bad patterns section** — what doesn't work and why, with workarounds
+4. **Stable selectors** — the ones that survive updates
+5. **Internal API endpoints** — if discovered, with request/response shapes (scrubbed)
+6. **Login flow** — how to get in, what to watch for
+7. **Gotchas** — edge cases, rate limits, anti-bot measures
 
 ## Rules
 

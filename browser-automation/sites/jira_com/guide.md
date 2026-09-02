@@ -1,3 +1,9 @@
+---
+name: jira
+description: Automate Jira via browser UI for issue creation, form filling, navigation, and transitions.
+verified: 2026-09-02
+---
+
 # Jira Automation
 
 Automate Jira via browser UI for issue creation, form filling, and navigation. Jira's web UI is the primary interface; there is no simple internal API accessible from the browser (unlike LinkedIn or Teams).

@@ -1,3 +1,9 @@
+---
+name: humand
+description: Automate job applications on Humand.co-based career sites via guest session API.
+verified: 2026-09-02
+---
+
 # Humand.co Automation
 
 Automate job applications on Humand.co-based career sites. Humand is an ATS used by some companies. Applications are submitted via their internal API with a guest session.

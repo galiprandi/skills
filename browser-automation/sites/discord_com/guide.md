@@ -1,6 +1,7 @@
 ---
 name: discord
 description: Automate Discord Web for messaging, navigation, and voice.
+verified: 2026-09-02
 ---
 
 # Discord Web Automation Guide

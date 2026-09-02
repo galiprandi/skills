@@ -1,6 +1,7 @@
 ---
 name: property-directory
 description: Scrape property rental directories for owner contacts, addresses, and WhatsApp links.
+verified: 2026-09-02
 ---
 
 # Property Directory Scraping Guide
