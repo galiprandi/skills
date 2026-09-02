@@ -30,20 +30,20 @@ After a manual login, save the auth state so you don't need to re-login next tim
 
 ```bash
 # 1. Open browser in headed mode for manual login
-node scripts/browser.js open "https://mail.google.com" --headed
+node .agents/skills/browser-automation/scripts/browser.js open "https://mail.google.com" --headed
 
 # 2. User logs in manually (handles captcha, 2FA, etc.)
 
 # 3. Save auth state (cookies + localStorage)
-node scripts/browser.js save-state
+node .agents/skills/browser-automation/scripts/browser.js save-state
 # Saves to .browser-profile/auth-state.json
 
 # 4. Close browser
-node scripts/browser.js close
+node .agents/skills/browser-automation/scripts/browser.js close
 
 # 5. Next session: open + load state (no re-login needed)
-node scripts/browser.js open "https://mail.google.com"
-node scripts/browser.js load-state
+node .agents/skills/browser-automation/scripts/browser.js open "https://mail.google.com"
+node .agents/skills/browser-automation/scripts/browser.js load-state
 ```
 
 ### Auth state vs persistent profile
@@ -62,7 +62,7 @@ If you need isolation (e.g. testing with different accounts), use separate profi
 
 ```bash
 # Default profile
-node scripts/browser.js open "https://gmail.com"
+node .agents/skills/browser-automation/scripts/browser.js open "https://gmail.com"
 
 # Custom profile (advanced, not supported by the wrapper)
 playwright-cli open "https://gmail.com" --profile ./.browser-profile-alt
@@ -104,11 +104,11 @@ Mode values:
 When a site logs you out:
 
 1. Detect the logout (check for login form, "Sign in" button, or redirect to login page)
-2. Open headed browser: `node scripts/browser.js open "https://site.com" --headed`
+2. Open headed browser: `node .agents/skills/browser-automation/scripts/browser.js open "https://site.com" --headed`
 3. Notify the user to log in manually
 4. Wait for confirmation
-5. Save state: `node scripts/browser.js save-state`
-6. Close: `node scripts/browser.js close`
+5. Save state: `node .agents/skills/browser-automation/scripts/browser.js save-state`
+6. Close: `node .agents/skills/browser-automation/scripts/browser.js close`
 7. Continue headless: `open` + `load-state`
 
 ### Captcha flow

@@ -37,17 +37,17 @@ Coordinator
 
 ```bash
 # 1. Open browser and create named tabs
-node scripts/browser.js open "https://gmail.com" --headless
-node scripts/browser.js tab-new "https://www.linkedin.com" --name linkedin
+node .agents/skills/browser-automation/scripts/browser.js open "https://gmail.com" --headless
+node .agents/skills/browser-automation/scripts/browser.js tab-new "https://www.linkedin.com" --name linkedin
 
 # 2. Run subagent A (gmail) — wait for it to finish
-node scripts/browser.js exec eval "(async()=>{var r=await fetch('https://mail.google.com/mail/feed/atom');return await r.text()})()" --tab gmail
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async()=>{var r=await fetch('https://mail.google.com/mail/feed/atom');return await r.text()})()" --tab gmail
 
 # 3. Run subagent B (linkedin) — only after A is done
-node scripts/browser.js exec eval "document.title" --tab linkedin
+node .agents/skills/browser-automation/scripts/browser.js exec eval "document.title" --tab linkedin
 
 # 4. Cleanup
-node scripts/browser.js close-all
+node .agents/skills/browser-automation/scripts/browser.js close-all
 ```
 
 ## Why not parallel?
@@ -74,14 +74,14 @@ But even this is fragile. Prefer sequential.
 
 ```bash
 # Check who is active
-node scripts/browser.js who
+node .agents/skills/browser-automation/scripts/browser.js who
 
 # Safe close (refuses if agents active)
-node scripts/browser.js close
+node .agents/skills/browser-automation/scripts/browser.js close
 
 # Force close (kills browser even if agents active)
-node scripts/browser.js close --force
-node scripts/browser.js close-all --force
+node .agents/skills/browser-automation/scripts/browser.js close --force
+node .agents/skills/browser-automation/scripts/browser.js close-all --force
 ```
 
 ## Tab naming convention
@@ -96,12 +96,12 @@ Use the app name as the tab name. This makes `--tab` intuitive:
 | YouTube | `youtube` | `https://youtube.com` |
 
 ```bash
-node scripts/browser.js tab-new "https://mail.google.com" --name gmail
-node scripts/browser.js tab-new "https://www.linkedin.com" --name linkedin
+node .agents/skills/browser-automation/scripts/browser.js tab-new "https://mail.google.com" --name gmail
+node .agents/skills/browser-automation/scripts/browser.js tab-new "https://www.linkedin.com" --name linkedin
 
 # Target by app name
-node scripts/browser.js exec eval "..." --tab gmail
-node scripts/browser.js exec eval "..." --tab linkedin
+node .agents/skills/browser-automation/scripts/browser.js exec eval "..." --tab gmail
+node .agents/skills/browser-automation/scripts/browser.js exec eval "..." --tab linkedin
 ```
 
 ## Pitfalls

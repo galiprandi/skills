@@ -6,10 +6,10 @@ Many web apps store auth tokens (JWT, OAuth, Cognito) in `localStorage`. You can
 
 ```bash
 # 1. Navigate to the app (ensures localStorage is populated)
-node scripts/browser.js goto "https://app.example.com"
+node .agents/skills/browser-automation/scripts/browser.js goto "https://app.example.com"
 
 # 2. Extract token by searching localStorage keys
-node scripts/browser.js exec eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const keys = Object.keys(localStorage);
   // Look for keys containing the app's domain or 'token'/'access'
   const k = keys.find(k => k.includes('example.com') && k.includes('token'));
@@ -19,7 +19,7 @@ node scripts/browser.js exec eval "(function(){
 })()"
 
 # 3. Parse JWT payload (if token is a JWT) for user info
-node scripts/browser.js exec eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const token = '<extracted_token>';
   const payload = JSON.parse(atob(token.split('.')[1]));
   return JSON.stringify({oid: payload.oid, name: payload.name, email: payload.email});
@@ -31,7 +31,7 @@ node scripts/browser.js exec eval "(function(){
 When localStorage values contain complex JSON with nested quotes, extract via base64:
 
 ```bash
-node scripts/browser.js exec eval "btoa(JSON.stringify(Object.fromEntries(Object.entries(localStorage))))"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "btoa(JSON.stringify(Object.fromEntries(Object.entries(localStorage))))"
 # Then decode locally: echo '<base64>' | base64 -d | jq
 ```
 

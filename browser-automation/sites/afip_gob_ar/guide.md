@@ -155,10 +155,6 @@ If Datos Personales or Empleadores are missing, "Carga de Formulario" redirects 
 - Each loaded month shows "Agregar Comprobante" — asks to associate receipts (rent receipt).
 - System warns if 40% of entered receipt amounts is less than the informed amount.
 
-## Keyboard shortcuts
-
-AFIP/ARCA has no keyboard shortcuts. All navigation is via clicks.
-
 ## Anti-patterns
 
 - **Do NOT navigate directly to SiRADIG JSP URLs after session expiry.** The portal session and JSP session are independent. Always re-navigate from the portal.

@@ -2,26 +2,147 @@
 
 Automate Microsoft Teams via internal chatsvc API. Token is extracted from browser localStorage, then used to send/delete messages via REST. No UI interaction needed for messaging.
 
-**Prerequisite:** Read the main Browser Automation guide first for profile-dir setup, the safe wrapper, and golden rules.
+## Keyboard shortcuts
 
-**Before doing anything manually, check if the consuming repo has scripts that wrap these operations.** Common scripts in consuming repos:
-- `scripts/teams.js` — send/delete messages via chatsvc API (wraps the patterns below)
+**Always prefer keyboard shortcuts over clicking buttons.** They are faster, more reliable, and don't depend on generated CSS classes or DOM structure that changes between updates.
 
-Run `ls scripts/teams*.js` to see what's available. **Prefer existing scripts over manual UI automation.**
+**Show shortcuts panel:** `Ctrl+.` (period) — opens the keyboard shortcuts dialog in Teams Web. Use this to verify shortcuts are enabled and discover new ones.
+
+**Focus matters:** Some shortcuts (like `Alt+N`, `Ctrl+G`, `Alt+R`) require focus to be in the main Teams area, not in a search box or dialog. If a shortcut doesn't work, press `Esc` first to reset focus, then retry.
+
+**Verification:** After navigation shortcuts, check `document.title` — it changes to include the app name (e.g. "Chat", "Calendar", "Llamadas", "Actividad"). Wait 2-3 seconds for the SPA to render.
+
+### Core shortcuts (most useful for automation)
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+.` | Show keyboard shortcuts |
+| `Ctrl+Shift+F` | Open filter |
+| `Ctrl+F` | Find in current chat or channel |
+| `Ctrl+Enter` | Send (expanded compose) |
+| `Shift+Enter` | Start new line |
+| `Esc` | Close |
+
+### Navigate apps
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+Shift+1` | Activity |
+| `Ctrl+Shift+2` | Chat |
+| `Ctrl+Shift+3` | Calendar |
+| `Ctrl+Shift+4` | Calls |
+| `Ctrl+Shift+5` | OneDrive |
+| `Ctrl+Shift+6` | Copilot |
+| `Ctrl+Shift+7` | Communicator |
+
+### Navigate chat tabs
+
+`Alt+1` through `Alt+9` — open 1st-9th tab on chat header.
+
+### Other shortcuts (compact reference)
+
+- `Ctrl+Alt+E` — Go to Search
+- `Alt+N` — Start a new chat
+- `Ctrl+Shift+,` — Open Settings
+- `Ctrl+F1` — Open Help
+- `Ctrl+Alt+Shift+R` — Report a problem
+- `Ctrl+G` — Go to a specific chat or channel
+- `Ctrl+Alt+Enter` — Move focus to pane divider
+- `Ctrl+Shift+Enter` — Return pane to default width
+- `Alt+Shift+L` — Move focus to chat/channel list
+- `Alt+Shift+M` — Move focus to message pane
+- `Alt+Shift+R` — Go to compose box
+- `Ctrl+F6` / `Ctrl+Shift+F6` — Go to next / previous section
+- `Alt+Q` — Collapse all conversational folders
+- `Shift+Esc` — Mark all as read
+- `Alt+J` — Jump to last read or newest message
+- `Alt+P` — Toggle details pane
+- `Alt+R` — Reply to last message
+- `Ctrl+Alt+R` — React to last message
+- `Ctrl+Alt+U` — See all unread chats
+- `Ctrl+Alt+C` / `Ctrl+Alt+A` / `Ctrl+Alt+B` — See all chat / channel / meeting conversations
+- `Ctrl+Alt+Z` — Clear all filters
+- `Ctrl+Shift+X` — Expand compose box
+- `Ctrl+B` / `Ctrl+I` / `Ctrl+U` — Bold / Italic / Underline
+- `Ctrl+Alt+X` — Strikethrough
+- `Ctrl+Shift+I` — Mark message as important
+- `Ctrl+K` — Insert link
+- `Alt+Shift+O` — Attach file
+- `Ctrl+Alt+1` / `Ctrl+Alt+2` / `Ctrl+Alt+3` — Heading 1 / 2 / 3
+- `Ctrl+Alt+4` — Block quote
+- `Ctrl+Alt+5` — Insert code
+- `Ctrl+Alt+Shift+C` — Inline code
+- `Ctrl+Alt+Shift+B` — Code block
+- `Ctrl+Alt+L` — Add Loop paragraph
+- `Alt+A` — Rewrite with Copilot
+- `Alt+Shift+E` — Open video recorder
+- `Alt+Shift+A` / `Alt+Shift+S` — Accept video / audio call
+- `Ctrl+Shift+D` — Decline call
+- `Alt+Shift+V` — Start video call
+- `Ctrl+Shift+H` — End call
+- `Ctrl+Shift+M` — Toggle mute
+- `Ctrl+Shift+U` — Toggle speaker
+- `Ctrl+Spacebar` — Temporarily unmute
+- `Ctrl+Shift+K` — Raise/lower hand
+- `Ctrl+Shift+E` — Toggle share content tray
+- `Alt+N` — Schedule a meeting
+- `Alt+Shift+J` — Join from meeting details
+- `Ctrl+S` — Save/send meeting request
+- `Enter` — Open selected item (calendar)
+- `Alt+Shift+1` to `Alt+Shift+5` — Day / Work week / Week / Month / Agenda views
+- `Ctrl+Alt+Left` / `Ctrl+Alt+Right` — Previous / next time period
+- `Alt+Down` / `Alt+Up` — Next / previous week
+- `Alt+PageDown` / `Alt+PageUp` — Next / previous month
+- `Alt+F1` — Open/collapse left pane
+- `Shift+Alt+Y` — Go to today
+- `Ctrl+P` — Print calendar
+- `Ctrl+Enter` — Send meeting
+- `Ctrl+Z` — Undo
+- `Ctrl+Shift+Q` — Create meeting request
+- `Ctrl+Alt+K` — Mark all as read (activity)
+- `Ctrl+Alt+M` — Filter to @ mentions
+
+### Usage with playwright-cli
+
+```bash
+# Show keyboard shortcuts panel
+node .agents/skills/browser-automation/scripts/browser.js exec press Control+.
+
+# Go to Chat
+node .agents/skills/browser-automation/scripts/browser.js exec press Control+Shift+2
+
+# Go to Calendar
+node .agents/skills/browser-automation/scripts/browser.js exec press Control+Shift+3
+
+# Start a new chat
+node .agents/skills/browser-automation/scripts/browser.js exec press Alt+n
+
+# Go to a specific chat or channel
+node .agents/skills/browser-automation/scripts/browser.js exec press Control+g
+
+# Mark all as read
+node .agents/skills/browser-automation/scripts/browser.js exec press Shift+Escape
+
+# Reply to last message
+node .agents/skills/browser-automation/scripts/browser.js exec press Alt+r
+
+# Send message (in expanded compose)
+node .agents/skills/browser-automation/scripts/browser.js exec press Control+Enter
+```
 
 ## Setup
 
 ```bash
 # Open Teams (headed for login, headless after)
-node scripts/browser.js open "https://teams.microsoft.com" --headed
+node .agents/skills/browser-automation/scripts/browser.js open "https://teams.microsoft.com" --headed
 
 # If login needed: user logs in manually, then save state
-node scripts/browser.js save-state
-node scripts/browser.js close
+node .agents/skills/browser-automation/scripts/browser.js save-state
+node .agents/skills/browser-automation/scripts/browser.js close
 
 # Next sessions: load state and go headless
-node scripts/browser.js open "https://teams.microsoft.com"
-node scripts/browser.js load-state
+node .agents/skills/browser-automation/scripts/browser.js open "https://teams.microsoft.com"
+node .agents/skills/browser-automation/scripts/browser.js load-state
 ```
 
 ## Token extraction (from browser localStorage)
@@ -30,10 +151,10 @@ Teams stores auth tokens in localStorage. Extract them via `eval`:
 
 ```bash
 # Navigate to Teams first (ensures localStorage is populated)
-node scripts/browser.js goto "https://teams.microsoft.com"
+node .agents/skills/browser-automation/scripts/browser.js goto "https://teams.microsoft.com"
 
 # Extract token from ic3.teams.office.com key
-node scripts/browser.js exec eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const keys = Object.keys(localStorage);
   const k = keys.find(k => k.includes('ic3.teams.office.com') && k.includes('accesstoken'));
   if (!k) return JSON.stringify({error: 'no ic3 token found'});
@@ -52,7 +173,7 @@ node scripts/browser.js exec eval "(function(){
 The `ic3.teams.office.com` token may not work for the chatsvc API. Alternative source:
 
 ```bash
-node scripts/browser.js exec eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const keys = Object.keys(localStorage);
   const k = keys.find(k => k.includes('chatsvcagg.teams.microsoft.com') && k.includes('accesstoken'));
   if (!k) return JSON.stringify({error: 'no chatsvcagg token found'});
@@ -66,7 +187,7 @@ The `oid` from the chatsvcagg token may be different from the ic3 token. Use the
 ## Send message via chatsvc API
 
 ```bash
-node scripts/browser.js exec eval "(async function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async function(){
   // 1. Extract token
   const keys = Object.keys(localStorage);
   const tk = keys.find(k => k.includes('ic3.teams.office.com') && k.includes('accesstoken'));
@@ -120,7 +241,7 @@ node scripts/browser.js exec eval "(async function(){
 ## Delete message (soft delete)
 
 ```bash
-node scripts/browser.js exec eval "(async function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async function(){
   // Extract token (same as send)
   const keys = Object.keys(localStorage);
   const tk = keys.find(k => k.includes('ic3.teams.office.com') && k.includes('accesstoken'));
@@ -181,176 +302,6 @@ const { chromium } = require('playwright');
 
 This pattern works for any web app, not just Teams. Use it to reverse-engineer undocumented APIs.
 
-## Keyboard shortcuts (PREFERRED over UI clicks for navigation)
-
-**Always prefer keyboard shortcuts over clicking buttons.** They are faster, more reliable, and don't depend on generated CSS classes or DOM structure that changes between updates.
-
-**Show shortcuts panel:** `Ctrl+.` (period) — opens the keyboard shortcuts dialog in Teams Web. Use this to verify shortcuts are enabled and discover new ones.
-
-**Focus matters:** Some shortcuts (like `Alt+N`, `Ctrl+G`, `Alt+R`) require focus to be in the main Teams area, not in a search box or dialog. If a shortcut doesn't work, press `Esc` first to reset focus, then retry.
-
-**Verification:** After navigation shortcuts, check `document.title` — it changes to include the app name (e.g. "Chat", "Calendar", "Llamadas", "Actividad"). Wait 2-3 seconds for the SPA to render.
-
-### General (Web app)
-
-| Shortcut | Action |
-|---|---|
-| `Ctrl+.` | Show keyboard shortcuts |
-| `Ctrl+Alt+E` | Go to Search |
-| `Ctrl+Shift+F` | Open filter |
-| `Alt+N` | Start a new chat |
-| `Ctrl+Shift+,` | Open Settings |
-| `Ctrl+F1` | Open Help |
-| `Esc` | Close |
-| `Ctrl+Alt+Shift+R` | Report a problem |
-| `Ctrl+G` | Go to a specific chat or channel |
-| `Ctrl+Alt+Enter` | Move focus to pane divider |
-| `Ctrl+Shift+Enter` | Return pane to default width |
-
-### Navigation (Web app)
-
-| Shortcut | Action |
-|---|---|
-| `Ctrl+Shift+1` | Open 1st app (Activity) |
-| `Ctrl+Shift+2` | Open 2nd app (Chat) |
-| `Ctrl+Shift+3` | Open 3rd app (Calendar) |
-| `Ctrl+Shift+4` | Open 4th app (Calls) |
-| `Ctrl+Shift+5` | Open 5th app (OneDrive) |
-| `Ctrl+Shift+6` | Open 6th app (Copilot) |
-| `Ctrl+Shift+7` | Open 7th app (Communicator) |
-| `Alt+Shift+L` | Move focus to chat/channel list |
-| `Alt+Shift+M` | Move focus to message pane |
-| `Alt+Shift+R` | Go to compose box |
-| `Ctrl+F6` | Go to next section |
-| `Ctrl+Shift+F6` | Go to previous section |
-
-### Messaging (Web app)
-
-| Shortcut | Action |
-|---|---|
-| `Alt+Q` | Collapse all conversational folders |
-| `Shift+Esc` | Mark all as read |
-| `Alt+J` | Jump to last read or newest message |
-| `Ctrl+F` | Find in current chat or channel |
-| `Alt+1` to `Alt+9` | Open 1st-9th tab on chat header |
-| `Alt+P` | Toggle details pane |
-| `Alt+R` | Reply to last message |
-| `Ctrl+Alt+R` | React to last message |
-| `Ctrl+Alt+U` | See all unread chats |
-| `Ctrl+Alt+C` | See all chat conversations |
-| `Ctrl+Alt+A` | See all channel conversations |
-| `Ctrl+Alt+B` | See all meeting chats |
-| `Ctrl+Alt+Z` | Clear all filters |
-
-### Compose (Web app)
-
-| Shortcut | Action |
-|---|---|
-| `Ctrl+Shift+X` | Expand compose box |
-| `Ctrl+Enter` | Send (expanded compose) |
-| `Shift+Enter` | Start new line |
-| `Ctrl+B` | Bold |
-| `Ctrl+I` | Italic |
-| `Ctrl+U` | Underline |
-| `Ctrl+Alt+X` | Strikethrough |
-| `Ctrl+Shift+I` | Mark message as important |
-| `Ctrl+K` | Insert link |
-| `Alt+Shift+O` | Attach file |
-| `Ctrl+Alt+1` | Heading 1 |
-| `Ctrl+Alt+2` | Heading 2 |
-| `Ctrl+Alt+3` | Heading 3 |
-| `Ctrl+Alt+4` | Block quote |
-| `Ctrl+Alt+5` | Insert code |
-| `Ctrl+Alt+Shift+C` | Inline code |
-| `Ctrl+Alt+Shift+B` | Code block |
-| `Ctrl+Alt+L` | Add Loop paragraph |
-| `Alt+A` | Rewrite with Copilot |
-| `Alt+Shift+E` | Open video recorder |
-
-### Meetings and Calls (Web app)
-
-| Shortcut | Action |
-|---|---|
-| `Alt+Shift+A` | Accept video call |
-| `Alt+Shift+S` | Accept audio call |
-| `Ctrl+Shift+D` | Decline call |
-| `Alt+Shift+V` | Start video call |
-| `Ctrl+Shift+H` | End call |
-| `Ctrl+Shift+M` | Toggle mute |
-| `Ctrl+Shift+U` | Toggle speaker |
-| `Ctrl+Spacebar` | Temporarily unmute |
-| `Ctrl+Shift+K` | Raise/lower hand |
-| `Ctrl+Shift+E` | Toggle share content tray |
-| `Alt+N` | Schedule a meeting |
-| `Alt+Shift+J` | Join from meeting details |
-| `Ctrl+S` | Save/send meeting request |
-
-### Calendar (Web app)
-
-| Shortcut | Action |
-|---|---|
-| `Ctrl+Shift+3` | Open calendar view |
-| `Enter` | Open selected item |
-| `Alt+Shift+1` | Day view |
-| `Alt+Shift+2` | Work week view |
-| `Alt+Shift+3` | Week view |
-| `Alt+Shift+4` | Month view |
-| `Alt+Shift+5` | Agenda in Month view |
-| `Ctrl+Alt+Left` | Previous time period |
-| `Ctrl+Alt+Right` | Next time period |
-| `Alt+Down` | Next week |
-| `Alt+Up` | Previous week |
-| `Alt+PageDown` | Next month |
-| `Alt+PageUp` | Previous month |
-| `Alt+F1` | Open/collapse left pane |
-| `Shift+Alt+Y` | Go to today |
-| `Ctrl+P` | Print calendar |
-| `Alt+Q` | Search calendar |
-| `Alt+N` | Create new event |
-| `Ctrl+S` | Save appointment |
-| `Ctrl+Enter` | Send meeting |
-| `Esc` | Discard draft |
-| `Ctrl+K` | Insert hyperlink |
-| `Ctrl+Z` | Undo |
-| `Ctrl+Shift+Q` | Create meeting request |
-
-### Activity feed (Web app)
-
-| Shortcut | Action |
-|---|---|
-| `Ctrl+Alt+K` | Mark all as read |
-| `Ctrl+Alt+U` | See all unread activity |
-| `Ctrl+Alt+C` | Filter to missed calls |
-| `Ctrl+Alt+M` | Filter to @ mentions |
-
-### Usage with playwright-cli
-
-```bash
-# Show keyboard shortcuts panel
-playwright-cli press Control+.
-
-# Go to Chat
-playwright-cli press Control+Shift+2
-
-# Go to Calendar
-playwright-cli press Control+Shift+3
-
-# Start a new chat
-playwright-cli press Alt+n
-
-# Go to a specific chat or channel
-playwright-cli press Control+g
-
-# Mark all as read
-playwright-cli press Shift+Escape
-
-# Reply to last message
-playwright-cli press Alt+r
-
-# Send message (in expanded compose)
-playwright-cli press Control+Enter
-```
-
 ## Navigating chats (UI)
 
 ### Open a specific chat by name
@@ -359,10 +310,10 @@ The chat list uses `[role="treeitem"]`. "Chats" section may be collapsed — cli
 
 ```bash
 # 1. Go to Chat app
-playwright-cli press Control+Shift+2
+node .agents/skills/browser-automation/scripts/browser.js exec press Control+Shift+2
 
 # 2. Wait for chat list to load
-playwright-cli eval "(async function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async function(){
   for (let i = 0; i < 30; i++) {
     if (document.querySelectorAll('[role=\"treeitem\"]').length > 3) return 'ready';
     await new Promise(r => setTimeout(r, 500));
@@ -371,7 +322,7 @@ playwright-cli eval "(async function(){
 })()"
 
 # 3. Expand "Chats" if collapsed
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const chats = Array.from(document.querySelectorAll('[role=\"treeitem\"]')).find(i =>
     i.offsetParent !== null && i.textContent.trim().startsWith('Chats')
   );
@@ -380,7 +331,7 @@ playwright-cli eval "(function(){
 })()"
 
 # 4. Click the chat by name
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const chat = Array.from(document.querySelectorAll('[role=\"treeitem\"]')).find(i =>
     i.offsetParent !== null && i.textContent.includes('Sprint review')
   );
@@ -393,7 +344,7 @@ playwright-cli eval "(function(){
 
 ```bash
 # Get the message list text
-playwright-cli eval "(async function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async function(){
   await new Promise(r => setTimeout(r, 2000));
   const text = document.body.innerText;
   const idx = text.indexOf('Lista de mensajes');
@@ -415,16 +366,16 @@ If the API fails (token expired, endpoint changed), send via UI:
 
 ```bash
 # 1. Navigate to the chat
-node scripts/browser.js goto "https://teams.microsoft.com/v2/chat/<chatId>"
+node .agents/skills/browser-automation/scripts/browser.js goto "https://teams.microsoft.com/v2/chat/<chatId>"
 
 # 2. Focus the textbox
-node scripts/browser.js exec eval "document.querySelector('div[role=textbox]').focus()"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "document.querySelector('div[role=textbox]').focus()"
 
 # 3. Type the message (short, no accents, no newlines)
-node scripts/browser.js exec type "your message"
+node .agents/skills/browser-automation/scripts/browser.js exec type "your message"
 
 # 4. Press Enter to send
-node scripts/browser.js exec press Enter
+node .agents/skills/browser-automation/scripts/browser.js exec press Enter
 ```
 
 ## Gotchas (validated empirically)
@@ -442,9 +393,6 @@ node scripts/browser.js exec press Enter
 
 ## Anti-patterns
 
-- **Don't** try to log in programmatically — open headed and let the user log in
 - **Don't** hardcode tokens — extract from localStorage at runtime
-- **Don't** reuse a token older than 1 hour — re-extract
 - **Don't** use UI for messages with newlines or special characters — use the API
 - **Don't** hard-delete — only softDelete is available via API
-- **Don't** click buttons when a keyboard shortcut exists — prefer `press` over `eval` + click

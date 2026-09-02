@@ -5,33 +5,21 @@ description: Automate LinkedIn with playwright-cli. Covers messaging (send text 
 
 # LinkedIn Automation
 
-Automate LinkedIn via `playwright-cli` using a mix of UI interactions and internal Voyager API endpoints. The API endpoints run inside `page.evaluate()` so they inherit the browser's cookies automatically.
-
-**Prerequisite:** Read the main Browser Automation guide first for profile-dir setup, the safe wrapper, and golden rules.
-
-**Before doing anything manually, check if the consuming repo has scripts that wrap these operations.** Common scripts in consuming repos:
-- `scripts/linkedin-inbox.js` — fetch all conversations in one call (wraps the Voyager bulk fetch below)
-- `scripts/linkedin-send.js` — send a text message via Voyager API
-- `scripts/linkedin-search.js` — search posts for job openings
-- `scripts/linkedin-invite.js` — send connection requests without note
-- `scripts/linkedin-easy-apply.js` — search + apply to Easy Apply jobs
-- `scripts/linkedin-warm-sourcing.js` — discover internal contacts and recruiters
-
-Run `ls scripts/linkedin-*.js` to see what's available. **Prefer existing scripts over manual UI automation** — they're faster, more reliable, and handle edge cases.
+Automate LinkedIn using a mix of UI interactions and internal Voyager API endpoints.
 
 ## Setup
 
 ```bash
 # Open LinkedIn (headless if already logged in, headed for login)
-node scripts/browser.js open "https://www.linkedin.com" --headed
+node .agents/skills/browser-automation/scripts/browser.js open "https://www.linkedin.com" --headed
 
 # If login needed: user logs in manually, then save state
-node scripts/browser.js save-state
-node scripts/browser.js close
+node .agents/skills/browser-automation/scripts/browser.js save-state
+node .agents/skills/browser-automation/scripts/browser.js close
 
 # Next sessions: load state and go headless
-node scripts/browser.js open "https://www.linkedin.com"
-node scripts/browser.js load-state
+node .agents/skills/browser-automation/scripts/browser.js open "https://www.linkedin.com"
+node .agents/skills/browser-automation/scripts/browser.js load-state
 ```
 
 ## Messaging
@@ -57,10 +45,10 @@ Object types in `included`:
 
 ```bash
 # Navigate to messaging first (loads required cookies)
-node scripts/browser.js goto "https://www.linkedin.com/messaging/"
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/messaging/"
 
 # Fetch all conversations with participant names and thread IDs
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var csrf = document.cookie.split('; ').find(function(c){return c.indexOf('JSESSIONID=')===0});
   csrf = csrf ? csrf.split('=')[1].replace(/\"/g,'') : '';
 
@@ -127,7 +115,7 @@ var maria = results.filter(function(r) {
 **Query ID changes over time.** If the endpoint returns HTML instead of JSON, find the current query ID:
 
 ```bash
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var entries = performance.getEntriesByType('resource');
   var conv = entries.filter(function(e){return e.name.indexOf('messengerConversations')>-1});
   return conv.map(function(e){return e.name.match(/queryId=(messengerConversations\.[a-f0-9]+)/)||[]}).map(function(m){return m[1]}).filter(Boolean);
@@ -152,7 +140,7 @@ LinkedIn Messaging is a SPA where the conversation list and the active thread ar
 ```bash
 # Get thread IDs from the bulk inbox fetch (see "Bulk inbox fetch" above)
 # Then navigate directly:
-node scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/" --tab linkedin
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/" --tab linkedin
 
 # Wait for messages to load (see "Read messages" below for the polling pattern)
 ```
@@ -163,7 +151,7 @@ node scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX=
 
 ```bash
 # ❌ Unreliable — click may not navigate
-node scripts/browser.js exec eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var items = document.querySelectorAll('.msg-conversation-listitem');
   for (var i = 0; i < items.length; i++) {
     var name = items[i].querySelector('h3')?.innerText?.trim() || '';
@@ -178,7 +166,7 @@ node scripts/browser.js exec eval "(function(){
 
 ```bash
 # ❌ Does not navigate — only moves highlight
-node scripts/browser.js exec press ArrowDown --tab linkedin
+node .agents/skills/browser-automation/scripts/browser.js exec press ArrowDown --tab linkedin
 # URL unchanged, message panel unchanged
 ```
 
@@ -193,9 +181,9 @@ To read messages from multiple conversations, loop through thread IDs from the b
 # 2. For each thread, navigate by URL and extract messages
 
 for THREAD_ID in "2-AAAA==" "2-BBBB==" "2-CCCC=="; do
-  node scripts/browser.js goto "https://www.linkedin.com/messaging/thread/$THREAD_ID/" --tab linkedin
+  node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/messaging/thread/$THREAD_ID/" --tab linkedin
   # Wait for messages to load
-  node scripts/browser.js exec eval "(async function(){
+  node .agents/skills/browser-automation/scripts/browser.js exec eval "(async function(){
     for (var i = 0; i < 30; i++) {
       var items = document.querySelectorAll('.msg-s-event-listitem');
       if (items.length > 0) return 'ready';
@@ -221,10 +209,10 @@ Fetch events from a thread by thread ID. Returns structured data with sender, bo
 
 ```bash
 # Navigate to messaging first (loads required cookies)
-node scripts/browser.js goto "https://www.linkedin.com/messaging/" --tab linkedin
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/messaging/" --tab linkedin
 
 # Fetch events from a thread
-node scripts/browser.js exec eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var csrf = document.cookie.split('; ').find(function(c){return c.indexOf('JSESSIONID=')===0});
   csrf = csrf ? csrf.split('=')[1].replace(/\"/g,'') : '';
   var THREAD_ID = '2-XXXXX==';
@@ -272,10 +260,10 @@ Navigate to the thread URL and extract messages from the rendered DOM. Use this 
 
 ```bash
 # 1. Navigate to the thread by ID (include == suffix)
-node scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/" --tab linkedin
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/" --tab linkedin
 
 # 2. Wait for messages to load (poll — LinkedIn is a SPA, messages load async)
-node scripts/browser.js exec eval "(async function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async function(){
   for (var i = 0; i < 30; i++) {
     var items = document.querySelectorAll('.msg-s-event-listitem');
     if (items.length > 0) return 'ready: ' + items.length + ' items';
@@ -285,7 +273,7 @@ node scripts/browser.js exec eval "(async function(){
 })()" --tab linkedin
 
 # 3. Extract messages with direction (sent vs received)
-node scripts/browser.js exec eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var items = document.querySelectorAll('.msg-s-event-listitem');
   var out = [];
   items.forEach(function(it){
@@ -306,7 +294,7 @@ node scripts/browser.js exec eval "(function(){
 **Scrolling for older messages:** the message list uses virtual scrolling. To load older messages, scroll the container to the top repeatedly:
 
 ```bash
-node scripts/browser.js exec eval "(async function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async function(){
   var container = document.querySelector('.msg-s-message-listcontainer');
   if (!container) return 'no container';
   var seen = {};
@@ -331,7 +319,7 @@ node scripts/browser.js exec eval "(async function(){
 **This is the only safe way to send a message.** The thread ID is obtained from the bulk inbox fetch above. No UI interaction needed — the API call works from any LinkedIn page.
 
 ```bash
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var csrf = document.cookie.split('; ').find(function(c){return c.indexOf('JSESSIONID=')===0});
   csrf = csrf ? csrf.split('=')[1].replace(/\"/g,'') : '';
 
@@ -385,10 +373,10 @@ This flow eliminates the entire class of "wrong recipient" errors. The thread ID
 
 ```bash
 # Navigate directly to the thread by ID
-node scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/"
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/"
 
 # Wait for the conversation to load
-playwright-cli eval "(async function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async function(){
   for (let i = 0; i < 50; i++) {
     if (document.querySelector('.msg-s-message-list-container')) return 'ready';
     await new Promise(r => setTimeout(r, 200));
@@ -397,7 +385,7 @@ playwright-cli eval "(async function(){
 })()"
 
 # Verify the correct thread is loaded (check URL, not just header text)
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var url = location.pathname;
   var threadId = url.match(/thread\/(2-[^/]+)/);
   if (!threadId) return 'no_thread_in_url';
@@ -416,9 +404,9 @@ playwright-cli eval "(function(){
 **Warning:** This method is unreliable. LinkedIn redirects `/messaging/` to the last active thread, and sidebar clicks may not navigate. Always prefer the thread ID method above. If you must use this, verify the thread ID in the URL after clicking — do not trust the header text alone.
 
 ```bash
-node scripts/browser.js goto "https://www.linkedin.com/messaging/"
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/messaging/"
 # Wait for conversation list
-playwright-cli eval "(async function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async function(){
   for (let i = 0; i < 50; i++) {
     if (document.querySelector('.msg-conversation-listitem')) return 'ready';
     await new Promise(r => setTimeout(r, 200));
@@ -427,7 +415,7 @@ playwright-cli eval "(async function(){
 })()"
 
 # Click conversation by name (atomic eval, Browser Automation Rule 1)
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const items = document.querySelectorAll('.msg-conversation-listitem');
   for (const item of items) {
     const name = item.querySelector('h3, .msg-conversation-card__content');
@@ -441,7 +429,7 @@ playwright-cli eval "(function(){
 
 # CRITICAL: Verify the thread URL changed to the expected thread ID
 # Do NOT trust header text — the composer belongs to whatever thread is in the URL
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var url = location.pathname;
   var threadId = url.match(/thread\/(2-[^/]+)/);
   if (!threadId) return 'ERROR: no thread in URL — click may have failed';
@@ -462,7 +450,7 @@ playwright-cli eval "(function(){
 ### Send text-only message (new conversation, via Voyager API)
 
 ```bash
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var csrf = document.cookie.split('; ').find(function(c){return c.indexOf('JSESSIONID=')===0});
   csrf = csrf ? csrf.split('=')[1].replace(/\"/g,'') : '';
 
@@ -504,7 +492,7 @@ Returns `conversationUrn` containing the thread ID (`2-XXXXX==`) for future repl
 ### Send text-only reply (existing conversation, via Voyager API)
 
 ```bash
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var csrf = document.cookie.split('; ').find(function(c){return c.indexOf('JSESSIONID=')===0});
   csrf = csrf ? csrf.split('=')[1].replace(/\"/g,'') : '';
 
@@ -542,10 +530,10 @@ The composer is `div[contenteditable]`. LinkedIn uses ProseMirror/tiptap which i
 
 ```bash
 # 1. Focus the composer
-playwright-cli eval "document.querySelector('div.msg-form__contenteditable').focus()"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "document.querySelector('div.msg-form__contenteditable').focus()"
 
 # 2. Set innerHTML with <p> tags and dispatch beforeinput with insertFromPaste
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var el = document.querySelector('div.msg-form__contenteditable');
   el.focus();
   var paragraphs = ['Line 1', 'Line 2', '', 'Line 4']; // '' for blank lines
@@ -562,16 +550,16 @@ playwright-cli eval "(function(){
 })()"
 
 # 3. Wait for Send button to be enabled
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var btn = document.querySelector('button[type=submit].msg-form__send-button');
   return btn && !btn.disabled ? 'enabled' : 'disabled';
 })()"
 
 # 4. Click Send (via eval, not ref)
-playwright-cli eval "document.querySelector('button[type=submit].msg-form__send-button').click()"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "document.querySelector('button[type=submit].msg-form__send-button').click()"
 
 # 5. Verify: check that the message text appears in the thread
-playwright-cli eval "document.body.innerText.includes('MESSAGE_SNIPPET')"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "document.body.innerText.includes('MESSAGE_SNIPPET')"
 ```
 
 **What does NOT work** (tested 2026-08-10):
@@ -589,7 +577,7 @@ playwright-cli eval "document.body.innerText.includes('MESSAGE_SNIPPET')"
 This is the only way to send attachments via endpoint. The attachment goes in `renderContentUnions`, NOT in `attachments` (which is silently dropped).
 
 ```bash
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var csrf = document.cookie.split('; ').find(function(c){return c.indexOf('JSESSIONID=')===0});
   csrf = csrf ? csrf.split('=')[1].replace(/\"/g,'') : '';
 
@@ -657,20 +645,20 @@ playwright-cli eval "(function(){
 If the endpoint flow fails (LinkedIn changes schema), use the UI:
 
 ```bash
-node scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/"
-playwright-cli snapshot
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/"
+node .agents/skills/browser-automation/scripts/browser.js exec snapshot
 
 # Find "Attach a file" button ref, click it
-playwright-cli click <attach_ref>
+node .agents/skills/browser-automation/scripts/browser.js exec click <attach_ref>
 
 # Upload file (file chooser opens automatically)
-playwright-cli upload /path/to/file.pdf
+node .agents/skills/browser-automation/scripts/browser.js exec upload /path/to/file.pdf
 
 # Fill message and send
-playwright-cli snapshot
-playwright-cli fill <textbox_ref> "your message"
-playwright-cli snapshot
-playwright-cli click <send_ref>
+node .agents/skills/browser-automation/scripts/browser.js exec snapshot
+node .agents/skills/browser-automation/scripts/browser.js exec fill <textbox_ref> "your message"
+node .agents/skills/browser-automation/scripts/browser.js exec snapshot
+node .agents/skills/browser-automation/scripts/browser.js exec click <send_ref>
 ```
 
 **Attach buttons only appear when a conversation is open** (not in the messaging list view).
@@ -683,10 +671,10 @@ The Connect button can be in: profile page, search results, or a dropdown. The m
 
 ```bash
 # 1. Navigate to profile
-node scripts/browser.js goto "https://www.linkedin.com/in/<username>/"
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/in/<username>/"
 
 # 2. Find Connect button (may be in "More" dropdown)
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const btns = document.querySelectorAll('button, [role=\"button\"]');
   for (const b of btns) {
     if (b.textContent.trim() === 'Connect') { b.click(); return 'clicked'; }
@@ -695,7 +683,7 @@ playwright-cli eval "(function(){
 })()"
 
 # 3. If "Add a note" appears, click it
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const links = document.querySelectorAll('a, button');
   for (const l of links) {
     if (l.textContent.includes('Add a note')) { l.click(); return 'clicked'; }
@@ -704,14 +692,14 @@ playwright-cli eval "(function(){
 })()"
 
 # 4. Fill the note textarea
-playwright-cli eval "(async function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async function(){
   for (let i = 0; i < 15; i++) {
     if (document.querySelector('textarea')) return 'ready';
     await new Promise(r => setTimeout(r, 200));
   }
   return 'timeout';
 })()"
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const ta = document.querySelector('textarea');
   ta.value = 'YOUR NOTE TEXT';
   ta.dispatchEvent(new InputEvent('input', { bubbles: true }));
@@ -719,7 +707,7 @@ playwright-cli eval "(function(){
 })()"
 
 # 5. Click Send
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const btns = document.querySelectorAll('button[type=\"submit\"], button');
   for (const b of btns) {
     if (b.textContent.includes('Send') && !b.disabled) { b.click(); return 'sent'; }
@@ -739,8 +727,8 @@ URL: https://www.linkedin.com/preload/custom-invite/?vanityName=<vanity>
 - Search for the "Send without a note" button and click it
 
 ```bash
-node scripts/browser.js goto "https://www.linkedin.com/preload/custom-invite/?vanityName=<vanity>"
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/preload/custom-invite/?vanityName=<vanity>"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const btns = document.querySelectorAll('button, [role=\"button\"]');
   for (const b of btns) {
     if (b.textContent.includes('Send without a note')) { b.click(); return 'sent'; }
@@ -761,8 +749,8 @@ Strategy: parse article "Notification" elements via eval
 ```
 
 ```bash
-node scripts/browser.js goto "https://www.linkedin.com/notifications/"
-playwright-cli eval "(async function(){
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/notifications/"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async function(){
   for (let i = 0; i < 50; i++) {
     if (document.querySelector('article')) return 'ready';
     await new Promise(r => setTimeout(r, 200));
@@ -770,7 +758,7 @@ playwright-cli eval "(async function(){
   return 'timeout';
 })()"
 
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const articles = document.querySelectorAll('article');
   return JSON.stringify(Array.from(articles).map(a => ({
     text: a.innerText.substring(0, 200),
@@ -788,8 +776,8 @@ Tabs: Saved, In Progress (dropdown: Draft, Clicked apply), Applied, Interview, A
 ```
 
 ```bash
-node scripts/browser.js goto "https://www.linkedin.com/jobs-tracker/?stage=saved"
-playwright-cli eval "(async function(){
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/jobs-tracker/?stage=saved"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async function(){
   for (let i = 0; i < 50; i++) {
     if (document.querySelector('main')) return 'ready';
     await new Promise(r => setTimeout(r, 200));
@@ -797,7 +785,7 @@ playwright-cli eval "(async function(){
   return 'timeout';
 })()"
 
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const cards = document.querySelectorAll('main a[href*=\"/jobs/view/\"]');
   return JSON.stringify(Array.from(cards).map(c => {
     const ps = c.querySelectorAll('p');
@@ -833,8 +821,8 @@ URL parameters:
 - Use the pagination URL parameter: `&start=25` for page 2, `&start=50` for page 3
 
 ```bash
-node scripts/browser.js goto "https://www.linkedin.com/jobs/search/?keywords=<keywords>&location=<loc>&f_AL=true&f_WT=2&sortBy=DD"
-playwright-cli eval "(async function(){
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/jobs/search/?keywords=<keywords>&location=<loc>&f_AL=true&f_WT=2&sortBy=DD"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async function(){
   for (let i = 0; i < 50; i++) {
     if (document.querySelector('main')) return 'ready';
     await new Promise(r => setTimeout(r, 200));
@@ -842,7 +830,7 @@ playwright-cli eval "(async function(){
   return 'timeout';
 })()"
 
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const cards = document.querySelectorAll('main .job-card-container, [data-job-id]');
   return JSON.stringify(Array.from(cards).map(c => ({
     title: c.querySelector('h3, .job-title')?.textContent || '',
@@ -909,7 +897,7 @@ playwright-cli eval "(function(){
 - Some forms open a file chooser when clicking "Attach". Use `playwright-cli upload <path>` immediately.
 - **"Continue applying" safety dialog**: LinkedIn may show a "Job search safety reminder" dialog with a "Continue applying" button when navigating to a job page. This dialog blocks the Easy Apply button. Dismiss it first by clicking "Continue applying" before attempting to click Easy Apply.
 - **Multi-page forms with required questions**: Many Easy Apply jobs have 3-5 page forms with required text inputs, radio groups, and comboboxes on page 3+ ("Preguntas adicionales"). The automated script (`linkedin-easy-apply.js`) may skip these because it can't answer job-specific questions. For batch applications, jobs without additional questions (1-2 page forms) succeed; jobs with custom questions require manual intervention.
-- **Easy Apply button click reliability**: `dispatchEvent` with mouse events may not open the compose dialog. Use direct `click` via ref from snapshot (`node scripts/browser.js exec click <ref>`) for reliable results. The button ref can be found by grepping the snapshot for `Easy Apply to`.
+- **Easy Apply button click reliability**: `dispatchEvent` with mouse events may not open the compose dialog. Use direct `click` via ref from snapshot (`node .agents/skills/browser-automation/scripts/browser.js exec click <ref>`) for reliable results. The button ref can be found by grepping the snapshot for `Easy Apply to`.
 - **Form dialog detection**: The Easy Apply form dialog may not match `[role=dialog]` in some LinkedIn versions. Check for the heading "Apply to <Company>" or the text "X/Y pages" to confirm the form is open.
 
 **Captcha:** if a captcha appears, stop and ask the user. Never attempt to solve programmatically.
@@ -919,8 +907,8 @@ playwright-cli eval "(function(){
 ### Find someone's profile ID
 
 ```bash
-node scripts/browser.js goto "https://www.linkedin.com/in/<username>/"
-playwright-cli eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/in/<username>/"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var ids = document.documentElement.outerHTML.match(/ACoAA[A-Za-z0-9_-]{5,}/g) || [];
   var counts = {};
   ids.forEach(function(id){counts[id] = (counts[id]||0) + 1});
@@ -931,7 +919,7 @@ playwright-cli eval "(function(){
 ### Navigate to a conversation by thread ID
 
 ```bash
-node scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/"
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/messaging/thread/2-XXXXX==/"
 ```
 
 ## Key headers for Voyager API
@@ -985,16 +973,16 @@ El modal aparece como un `dialog` con role="dialog" y contiene un textbox "Text 
 
 ```bash
 # Navigate to feed
-node scripts/browser.js goto "https://www.linkedin.com/feed/" --tab linkedin
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/feed/" --tab linkedin
 
 # Click "Start a post"
-node scripts/browser.js exec eval "(() => { const els = Array.from(document.querySelectorAll('*')).filter(e => e.textContent.trim() === 'Start a post' && e.children.length === 0); if (els.length) { let el = els[0]; while (el && el.tagName !== 'BUTTON' && el.getAttribute('role') !== 'button') el = el.parentElement; (el || els[0]).click(); return 'clicked'; } return 'not_found'; })()"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(() => { const els = Array.from(document.querySelectorAll('*')).filter(e => e.textContent.trim() === 'Start a post' && e.children.length === 0); if (els.length) { let el = els[0]; while (el && el.tagName !== 'BUTTON' && el.getAttribute('role') !== 'button') el = el.parentElement; (el || els[0]).click(); return 'clicked'; } return 'not_found'; })()"
 
 # Wait for the modal dialog to appear
 sleep 3
 
 # VERIFY the modal is open and the editor is empty BEFORE typing
-node scripts/browser.js exec snapshot --tab linkedin
+node .agents/skills/browser-automation/scripts/browser.js exec snapshot --tab linkedin
 # Look for: dialog with "Create post modal" heading and textbox "Text editor for creating content"
 # If the textbox already has paragraph children with text, DO NOT type again
 ```
@@ -1005,7 +993,7 @@ El composer vive dentro de un shadow DOM (`#interop-outlet` → `shadowRoot`).
 ```bash
 # Click "Start a post" (same as above)
 # Then check for shadow DOM:
-node scripts/browser.js exec eval "(() => { const s = document.querySelector('#interop-outlet'); return s && s.shadowRoot ? 'shadow DOM found' : 'no shadow DOM'; })()"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(() => { const s = document.querySelector('#interop-outlet'); return s && s.shadowRoot ? 'shadow DOM found' : 'no shadow DOM'; })()"
 ```
 
 ### Type the post content
@@ -1016,15 +1004,15 @@ El editor es un `contenteditable` div dentro del dialog. `playwright-cli type` f
 
 ```bash
 # Click the textbox to focus it (use the ref from snapshot)
-node scripts/browser.js exec click --tab linkedin "<textbox_ref>"
+node .agents/skills/browser-automation/scripts/browser.js exec click --tab linkedin "<textbox_ref>"
 
 # Type the content — usar \n para saltos de línea
-node scripts/browser.js exec type --tab linkedin "Your post text here.
+node .agents/skills/browser-automation/scripts/browser.js exec type --tab linkedin "Your post text here.
 
 Second paragraph."
 
 # VERIFY after typing that the text loaded correctly
-node scripts/browser.js exec snapshot --tab linkedin
+node .agents/skills/browser-automation/scripts/browser.js exec snapshot --tab linkedin
 # Check that the textbox has paragraph children with the expected text
 # If text is missing or duplicated, STOP and ask the user
 ```
@@ -1037,7 +1025,7 @@ El composer usa **Quill.js** (`.ql-editor`), NOT tiptap. The tiptap `innerHTML` 
 
 ```bash
 # Wait for the editor to appear in the shadow DOM, then focus it
-node scripts/browser.js exec eval "(async () => {
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async () => {
   for (let i = 0; i < 40; i++) {
     let editors = document.querySelectorAll('div.ql-editor');
     let editor = Array.from(editors).find(e => e.offsetParent !== null);
@@ -1049,16 +1037,16 @@ node scripts/browser.js exec eval "(async () => {
 })()"
 
 # Type the content (simulates real keyboard — Quill registers it)
-node scripts/browser.js exec type "Your post text here. Use \\n for line breaks."
+node .agents/skills/browser-automation/scripts/browser.js exec type "Your post text here. Use \\n for line breaks."
 ```
 
 **Limitation:** `playwright-cli type` does not handle multi-line text well (newlines are parsed as args). For long multi-paragraph posts, type the text in one line or use multiple `type` calls with `press Enter` between them:
 
 ```bash
-node scripts/browser.js exec type "First paragraph"
-node scripts/browser.js exec press Enter
-node scripts/browser.js exec press Enter
-node scripts/browser.js exec type "Second paragraph"
+node .agents/skills/browser-automation/scripts/browser.js exec type "First paragraph"
+node .agents/skills/browser-automation/scripts/browser.js exec press Enter
+node .agents/skills/browser-automation/scripts/browser.js exec press Enter
+node .agents/skills/browser-automation/scripts/browser.js exec type "Second paragraph"
 ```
 
 **What does NOT work** (validated 2026-08-23):
@@ -1073,10 +1061,10 @@ After typing the content, the footer has a clock icon button to schedule.
 
 ```bash
 # Click the schedule button (inside shadow DOM)
-node scripts/browser.js exec eval "(() => { const shadow = document.querySelector('#interop-outlet').shadowRoot; const btn = shadow.querySelector('button[aria-label=\"Schedule post\"]'); if (btn) { btn.click(); return 'clicked'; } return 'not_found'; })()"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(() => { const shadow = document.querySelector('#interop-outlet').shadowRoot; const btn = shadow.querySelector('button[aria-label=\"Schedule post\"]'); if (btn) { btn.click(); return 'clicked'; } return 'not_found'; })()"
 
 # Set date and time (inputs are in the shadow DOM)
-node scripts/browser.js exec eval "(() => {
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(() => {
   const shadow = document.querySelector('#interop-outlet').shadowRoot;
   const dateInput = shadow.querySelector('input[name=\"artdeco-date\"]');
   const timeInput = shadow.querySelector('input[name=\"timepicker\"]');
@@ -1090,10 +1078,10 @@ node scripts/browser.js exec eval "(() => {
 })()"
 
 # Click "Next" then "Schedule" (both in shadow DOM)
-node scripts/browser.js exec eval "(() => { const shadow = document.querySelector('#interop-outlet').shadowRoot; const btn = Array.from(shadow.querySelectorAll('button')).find(b => b.textContent.trim() === 'Next' && !b.disabled); if (btn) { btn.click(); return 'clicked Next'; } return 'not_found'; })()"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(() => { const shadow = document.querySelector('#interop-outlet').shadowRoot; const btn = Array.from(shadow.querySelectorAll('button')).find(b => b.textContent.trim() === 'Next' && !b.disabled); if (btn) { btn.click(); return 'clicked Next'; } return 'not_found'; })()"
 
 # Wait a moment, then click "Schedule"
-node scripts/browser.js exec eval "(async () => { await new Promise(r => setTimeout(r, 1000)); const shadow = document.querySelector('#interop-outlet').shadowRoot; const btn = Array.from(shadow.querySelectorAll('button')).find(b => b.textContent.trim() === 'Schedule' && !b.disabled); if (btn) { btn.click(); return 'clicked Schedule'; } return 'not_found'; })()"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async () => { await new Promise(r => setTimeout(r, 1000)); const shadow = document.querySelector('#interop-outlet').shadowRoot; const btn = Array.from(shadow.querySelectorAll('button')).find(b => b.textContent.trim() === 'Schedule' && !b.disabled); if (btn) { btn.click(); return 'clicked Schedule'; } return 'not_found'; })()"
 ```
 
 **Verification:** after scheduling, the page shows a toast: "Post scheduled. View scheduled posts".
@@ -1102,7 +1090,7 @@ node scripts/browser.js exec eval "(async () => { await new Promise(r => setTime
 
 ```bash
 # Click a specific day in the calendar (aria-label format: "Day, Month DD, YYYY")
-node scripts/browser.js exec eval "(() => {
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(() => {
   const shadow = document.querySelector('#interop-outlet').shadowRoot;
   const dayBtn = Array.from(shadow.querySelectorAll('button')).find(b => b.getAttribute('aria-label') && b.getAttribute('aria-label').includes('Monday, August 24, 2026'));
   if (dayBtn) { dayBtn.click(); return 'clicked'; } return 'not_found';
@@ -1117,15 +1105,15 @@ After typing content (and the "Post" button is enabled):
 
 ```bash
 # VERIFY the modal is still open and text is correct before clicking Post
-node scripts/browser.js exec snapshot --tab linkedin
+node .agents/skills/browser-automation/scripts/browser.js exec snapshot --tab linkedin
 # Confirm: dialog with "Create post modal", textbox has all paragraphs, button "Post" is present and not disabled
 
 # Click "Post" (use the ref from snapshot)
-node scripts/browser.js exec click --tab linkedin "<post_button_ref>"
+node .agents/skills/browser-automation/scripts/browser.js exec click --tab linkedin "<post_button_ref>"
 
 # VERIFY the post was published
 sleep 5
-node scripts/browser.js exec snapshot --tab linkedin
+node .agents/skills/browser-automation/scripts/browser.js exec snapshot --tab linkedin
 # The modal should be gone and the post should appear in the feed
 ```
 
@@ -1133,7 +1121,7 @@ node scripts/browser.js exec snapshot --tab linkedin
 
 ```bash
 # Click "Post" (inside shadow DOM)
-node scripts/browser.js exec eval "(() => { const shadow = document.querySelector('#interop-outlet').shadowRoot; const btn = Array.from(shadow.querySelectorAll('button')).find(b => b.textContent.trim() === 'Post' && !b.disabled); if (btn) { btn.click(); return 'posted'; } return 'not_found_or_disabled'; })()"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(() => { const shadow = document.querySelector('#interop-outlet').shadowRoot; const btn = Array.from(shadow.querySelectorAll('button')).find(b => b.textContent.trim() === 'Post' && !b.disabled); if (btn) { btn.click(); return 'posted'; } return 'not_found_or_disabled'; })()"
 ```
 
 ### Delete a post
@@ -1142,17 +1130,17 @@ Navigate to your activity page and delete from the control menu:
 
 ```bash
 # Go to your activity
-node scripts/browser.js goto "https://www.linkedin.com/in/<profile_id>/recent-activity/all/"
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/in/<profile_id>/recent-activity/all/"
 
 # Find the post by text content, open its control menu
-node scripts/browser.js exec eval "(() => { const btn = document.querySelector('button[aria-label=\"Open control menu for post by <Your Name>\"]'); if (btn) { btn.click(); return 'clicked'; } return 'not_found'; })()"
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(() => { const btn = document.querySelector('button[aria-label=\"Open control menu for post by <Your Name>\"]'); if (btn) { btn.click(); return 'clicked'; } return 'not_found'; })()"
 
 # Click "Delete post" (use find + click with refs)
-node scripts/browser.js exec find "Delete post"
+node .agents/skills/browser-automation/scripts/browser.js exec find "Delete post"
 # then click the ref
 
 # Confirm in the dialog
-node scripts/browser.js exec find "Delete"
+node .agents/skills/browser-automation/scripts/browser.js exec find "Delete"
 # then click the ref (the dialog's Delete button, not the menu item)
 ```
 
@@ -1166,12 +1154,12 @@ To extract your own published posts (feed shares), navigate to your activity pag
 
 ```bash
 # 1. Navigate to your activity page (shares only, or all activity)
-node scripts/browser.js goto "https://www.linkedin.com/in/<profile_id>/recent-activity/shares/" --tab linkedin
+node .agents/skills/browser-automation/scripts/browser.js goto "https://www.linkedin.com/in/<profile_id>/recent-activity/shares/" --tab linkedin
 
 # Note: LinkedIn may redirect /shares/ to /all/ — both work, /all/ shows posts + comments + reactions
 
 # 2. Wait for posts to render (poll — async SPA load)
-node scripts/browser.js exec eval "(async function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async function(){
   for (var i = 0; i < 30; i++) {
     var posts = document.querySelectorAll('.feed-shared-update-v2__description, .update-components-text');
     if (posts.length > 0) return 'ready: ' + posts.length;
@@ -1181,7 +1169,7 @@ node scripts/browser.js exec eval "(async function(){
 })()" --tab linkedin
 
 # 3. Extract post texts (deduplicated — the activity page may render duplicates)
-node scripts/browser.js exec eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var posts = document.querySelectorAll('.feed-shared-update-v2__description, .update-components-text');
   var seen = {};
   var out = [];
@@ -1200,7 +1188,7 @@ node scripts/browser.js exec eval "(function(){
 **Scrolling for more posts:** the activity page uses lazy loading. To load older posts, scroll down and re-extract:
 
 ```bash
-node scripts/browser.js exec eval "(async function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(async function(){
   var seen = {};
   var out = [];
   for (var s = 0; s < 5; s++) {
@@ -1221,7 +1209,7 @@ node scripts/browser.js exec eval "(async function(){
 **Gotcha — profile ID required:** you need your own profile ID (the `ACoAA...` string) or vanity name for the URL. Get it from any LinkedIn page:
 
 ```bash
-node scripts/browser.js exec eval "(function(){
+node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   var ids = document.documentElement.outerHTML.match(/ACoAA[A-Za-z0-9_-]{5,}/g) || [];
   var counts = {};
   ids.forEach(function(id){counts[id] = (counts[id]||0) + 1});
@@ -1230,23 +1218,6 @@ node scripts/browser.js exec eval "(function(){
 ```
 
 Or use your vanity name: `https://www.linkedin.com/in/<vanity_name>/recent-activity/all/`
-
-## Anti-patterns
-
-- **Don't** open `/messaging/` and click a sidebar name to send a message — LinkedIn redirects to the last active thread and sidebar clicks may not navigate. The composer belongs to whatever thread is in the URL, not the name you clicked. Use the bulk inbox fetch to get the thread ID, then navigate directly to `/messaging/thread/<thread_id>/` or use the Voyager API with the thread ID. A message sent to the wrong thread cannot be unsent.
-- **Don't** verify a sent message with `hasMyMsg:true` alone — that only confirms the text exists somewhere on the page (could be the sidebar preview of the wrong conversation). Verify the thread ID in the URL matches the intended recipient AND the input is empty AND the message appears in the conversation pane.
-- **Don't** open conversations one by one when you can use the bulk inbox fetch
-- **Don't** put attachments in `attachments[]` field — use `renderContentUnions`
-- **Don't** use `content-type: application/json` for the dash endpoint — use `text/plain`
-- **Don't** reuse refs after navigating or clicking — take a new snapshot
-- **Don't** try to log in programmatically — open headed and let the user log in
-- **Don't** send messages without user approval if they're real outreach
-- **Don't** use `innerText` or `textContent` for the tiptap editor — use `innerHTML` + `beforeinput` with `insertFromPaste`
-- **Don't** retry captchas in a loop — stop and ask the user
-- **Don't** try to connect with 3rd+ connections — they can't be invited
-- **Don't** retry custom notes when the weekly limit is exhausted — send without a note
-- **Don't** use `innerHTML` + `beforeinput`/`paste`/`execCommand` on the share composer (Quill) — the text appears visually but the "Post" button stays disabled because Quill's internal state is never updated. Use `playwright-cli type` instead (simulates real keyboard input)
-- **Don't** use `document.querySelector()` for the share composer — it lives inside `#interop-outlet`'s shadow DOM. Always use `document.querySelector('#interop-outlet').shadowRoot.querySelector()`
 
 ## API reference
 
