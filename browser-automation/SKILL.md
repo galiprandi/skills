@@ -173,6 +173,8 @@ The wrapper script lives in this skill and is **executed in-place** — it is NO
 
 **Always use the wrapper for open/goto/close.** Never call `playwright-cli open` directly.
 
+**Migration from old copies:** If your consuming repo has an old copy at `scripts/browser.js` from a previous version of this skill, delete it. That copy is obsolete — it does not auto-inject site guides, does not check for updates, and is no longer maintained. Use the in-place path below instead.
+
 The wrapper path relative to the repo root:
 ```
 .agents/skills/browser-automation/scripts/browser.js
