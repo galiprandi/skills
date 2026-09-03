@@ -49,6 +49,21 @@ These patterns are universal — they work in Gmail, LinkedIn, WhatsApp, Outlook
 | Confirm dialog | `Enter` | Accept confirm dialogs, "Are you sure?" prompts |
 | Cancel dialog | `Escape` | Cancel instead of confirm |
 
+### Keyboard interaction by control type
+
+Standard HTML5 controls have predictable keyboard behavior. Use these instead of clicking:
+
+| Control | Keys | Action |
+|---|---|---|
+| `input[type=text\|email\|password\|number\|tel\|url]` | `Tab` → `type <value>` | Focus then type |
+| `input[type=checkbox]` | `Tab` → `Space` | Toggle checked/unchecked |
+| `input[type=radio]` | `Tab` to group → `ArrowDown`/`ArrowRight` | Change selected option |
+| `select` | `Tab` → `Enter` or `Alt+ArrowDown` → `ArrowDown`/`ArrowUp` → `Enter` | Open, navigate, confirm |
+| `textarea` | `Tab` → `type <text>` (`Shift+Enter` for line breaks) | Focus then type |
+| `button[submit]` | `Tab` → `Enter` or `Space` | Submit (or `Enter` from last text input) |
+
+**Form workflow:** `Tab` into the first field → type → `Tab` to next → type → repeat → `Enter` to submit. One sequential flow, no snapshots, no clicks.
+
 ### How to use keyboard navigation
 
 ```bash
