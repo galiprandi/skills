@@ -140,7 +140,7 @@ If a site has a guide, you will see it. If you don't see a guide, the site is no
 |---|---|---|
 | Gmail | `sites/gmail_com/guide.md` | Before any Gmail operation (compose, reply, read inbox, search, delete) |
 | LinkedIn | `sites/linkedin_com/guide.md` | Before any LinkedIn operation (messaging, connections, jobs, Easy Apply, notifications) |
-| Microsoft Teams | `sites/teams_com/guide.md` | Before any Teams operation (send/delete messages via chatsvc API, token extraction) |
+| Microsoft Teams | `sites/teams_com/guide.md` | Before any Teams operation (send/delete messages via keyboard, Markdown support, chat navigation) |
 | Outlook Web | `sites/outlook_office_com/guide.md` | Before any Outlook Web operation (read, compose, reply, archive, search) |
 | WhatsApp Web | `sites/whatsapp_com/guide.md` | Before any WhatsApp operation (send messages, read conversations, voice notes) |
 | Discord | `sites/discord_com/guide.md` | Before any Discord operation (messaging, navigation, voice) |

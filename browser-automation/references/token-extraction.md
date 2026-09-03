@@ -36,9 +36,10 @@ node .agents/skills/browser-automation/scripts/browser.js exec eval "btoa(JSON.s
 ```
 
 **Apps known to use localStorage tokens:**
-- **Teams:** `ic3.teams.office.com` + `accesstoken` key (fallback: `chatsvcagg.teams.microsoft.com`)
 - **Cognito-based apps:** `access_token`, `refresh_token`, `token_type` keys
 - **Custom portals:** `@user`, `authToken`, or app-prefixed keys
+
+**Note on Teams:** Teams v2 encrypts tokens in localStorage (`encryptedToken` + `iv` fields). Token extraction does not work for the chatsvc API. Use keyboard automation instead (see `sites/teams_com/guide.md`).
 
 **Token refresh pattern (Cognito/AWS):**
 
