@@ -144,30 +144,51 @@ URL format: `https://teams.microsoft.com/v2/chat/<chatId>`
 
 ## Navigating chats
 
-### Open a specific chat by name
+### Open a specific chat by name (search method)
+
+Teams v2 does not reliably navigate via URL (`goto` may open the wrong chat). Use the search box instead.
 
 ```bash
-# 1. Go to Chat app
-node scripts/browser.js exec press Control+Shift+2
+# 1. Escape to close any open modal/dropdown
+node scripts/browser.js exec press "Escape"
 
-# 2. Wait for chat list to load
+# 2. Focus and clear the search box
+node scripts/browser.js exec eval "(function(){
+  const s = document.getElementById('ms-searchux-input');
+  if (!s) return 'no search input';
+  s.focus();
+  s.value = '';
+  s.dispatchEvent(new Event('input', {bubbles: true}));
+  return 'cleared';
+})()"
+
+# 3. Type the chat name
+node scripts/browser.js exec type -- "chat name here"
+
+# 4. Poll for search results to appear
 node scripts/browser.js exec eval "(async function(){
-  for (let i = 0; i < 30; i++) {
-    if (document.querySelectorAll('[role=\"treeitem\"]').length > 3) return 'ready';
-    await new Promise(r => setTimeout(r, 500));
+  for (let i = 0; i < 15; i++) {
+    const list = document.querySelector('[data-tid=\"search-results-list\"], [role=\"listbox\"], [data-tid*=\"autosuggest\"]');
+    if (list && list.innerText.trim().length > 10) return 'ok';
+    await new Promise(x => setTimeout(x, 200));
   }
   return 'timeout';
 })()"
 
-# 3. Click chat by name
+# 5. Arrow down twice to reach the first result, then Enter
+node scripts/browser.js exec press "ArrowDown"
+node scripts/browser.js exec press "ArrowDown"
+node scripts/browser.js exec press "Enter"
+
+# 6. Validate the correct chat is active (check document.title)
 node scripts/browser.js exec eval "(function(){
-  const chat = Array.from(document.querySelectorAll('[role=\"treeitem\"]')).find(i =>
-    i.offsetParent !== null && i.textContent.includes('chat name here')
-  );
-  if (chat) { chat.click(); return 'clicked'; }
-  return 'not_found';
+  const t = document.title;
+  if (t.includes('expected chat name')) return 'ok: ' + t;
+  return 'WRONG: ' + t;
 })()"
 ```
+
+**Important:** Always validate `document.title` before sending a message. The URL may show a different chatId than the one actually active.
 
 ### Read chat messages
 
