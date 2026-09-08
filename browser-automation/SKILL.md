@@ -150,6 +150,8 @@ If a site has a guide, you will see it. If you don't see a guide, the site is no
 | Reddit | `sites/reddit_com/guide.md` | Before any Reddit operation (reading posts/comments, posting submissions, replying to comments, posting in megathreads) |
 | Google Maps | `sites/google_com/maps-guide.md` | Before any Google Maps operation (search, directions, navigation, layers) |
 | Facebook | `sites/facebook_com/guide.md` | Before any Facebook operation (groups, feed, chat, posts) |
+| Cloudflare Dashboard | `sites/dash_cloudflare_com/guide.md` | Before any Cloudflare operation (Quick Search, ARIA tablist navigation, Email Routing, DNS) |
+| Web3Forms | `sites/app_web3forms_com/guide.md` | Before any Web3Forms operation (submissions, settings, spam protection, form config) |
 
 **Before each interaction with a documented site:** grep the specific pattern you need (compose, reply, send, fill, contenteditable, etc.) in the site guide. Do not trial-and-error blindly. The guides contain validated methods and explicit warnings about what does NOT work.
 
