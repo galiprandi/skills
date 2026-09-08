@@ -175,10 +175,17 @@ node scripts/browser.js exec eval "(async function(){
   return 'timeout';
 })()"
 
-# 5. Arrow down twice to reach the first result, then Enter
-node scripts/browser.js exec press "ArrowDown"
-node scripts/browser.js exec press "ArrowDown"
-node scripts/browser.js exec press "Enter"
+# 5. Click the TOPHITS option that matches the chat name
+node scripts/browser.js exec eval "(function(){
+  const options = document.querySelectorAll('[role=\"option\"]');
+  for (const opt of options) {
+    if (opt.offsetParent !== null && opt.innerText.includes('CHAT NAME HERE') && opt.getAttribute('data-tid') && opt.getAttribute('data-tid').includes('TOPHITS')) {
+      opt.click();
+      return 'clicked';
+    }
+  }
+  return 'not found';
+})()"
 
 # 6. Validate the correct chat is active (check document.title)
 node scripts/browser.js exec eval "(function(){
