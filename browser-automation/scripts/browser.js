@@ -14,6 +14,7 @@
  *   node .agents/skills/browser-automation/scripts/browser.js goto <url> [--tab <name>]
  *   node .agents/skills/browser-automation/scripts/browser.js tab-new <url> --name <name>
  *   node .agents/skills/browser-automation/scripts/browser.js exec <cmd> [args...] [--tab <name>]
+ *   node .agents/skills/browser-automation/scripts/browser.js wait-dom [--quiet <ms>] [--timeout <ms>]
  *   node .agents/skills/browser-automation/scripts/browser.js close [--force]
  *   node .agents/skills/browser-automation/scripts/browser.js close-all [--force]
  *   node .agents/skills/browser-automation/scripts/browser.js save-state [--filename <path>]
@@ -655,8 +656,14 @@ function usage() {
 
   node ${scriptPath} exec <cmd> [args...] [--tab <name>]
     Passthrough to playwright-cli. With --tab: selects tab then runs command.
+    Uses the session daemon's socket directly when possible (fast path,
+    ~500ms vs ~3-4s spawn). BROWSER_NO_FAST=1 forces the spawn path.
     Example: node ${scriptPath} exec snapshot --tab gmail
     Example: node ${scriptPath} exec press Enter
+
+  node ${scriptPath} wait-dom [--quiet <ms>] [--timeout <ms>]
+    Wait until the DOM stops mutating (MutationObserver quiet window).
+    Prefer this over shell sleeps after clicks/navigation.
 
   node ${scriptPath} close [--force]
     Close the browser.
@@ -695,13 +702,79 @@ Environment:
   BROWSER_DEBUG=1            Verbose logging to stderr.
   BROWSER_MODE               Override browser mode.
   BROWSER_NO_UPDATE_CHECK=1  Disable update check on open.
+  BROWSER_NO_FAST=1          Disable the session-socket fast path for exec.
+  BROWSER_EXEC_TIMEOUT_MS    Fast-path command timeout (default 60000).
 
 For click, fill, snapshot, eval, press, etc. use 'exec'.`);
 }
 
+/**
+ * Returns a description string if the session violates profile/mode
+ * expectations, null if it's fine. Session metadata comes from the daemon's
+ * .session file (browser.userDataDir, browser.launchOptions.headless).
+ */
+function sessionProfileMismatch(sessionName, flags) {
+  try {
+    const helper = require('./helper');
+    const cfg = helper.resolveSession(REPO_ROOT, sessionName);
+    if (!cfg || !cfg.browser) return null;
+    // The wrapper always opens with --profile=.browser-profile, so a session
+    // file without userDataDir (temp profile) or with a different one is rogue.
+    const ud = cfg.browser.userDataDir;
+    if (!ud || path.resolve(cfg.workspaceDir || REPO_ROOT, ud) !== PROFILE_DIR) {
+      return `uses profile '${ud || 'temp/ephemeral'}' instead of .browser-profile`;
+    }
+    const wantHeaded = flags && (flags.headed || (!flags.headless && getBrowserMode() === 'headed'));
+    if (wantHeaded && cfg.browser.launchOptions && cfg.browser.launchOptions.headless === true) {
+      return 'is headless but headed mode is configured';
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// --- fast path (session daemon socket) ---
+
+/**
+ * Run a playwright-cli command through the session daemon's unix socket.
+ * Skips playwright-cli module loading (~3-4s per call → ~500ms).
+ * Returns true if the command ran (caller must return); false → use spawn path.
+ */
+async function fastExec(subcommand, execArgs, tabName) {
+  if (process.env.BROWSER_NO_FAST) return false;
+  try {
+    const helper = require('./helper');
+    const session = helper.resolveSession(REPO_ROOT, null);
+    if (!session) { debug('fastExec: no session file for this workspace'); return false; }
+    const ud = session.browser && session.browser.userDataDir;
+    if (ud && path.resolve(session.workspaceDir || REPO_ROOT, ud) !== PROFILE_DIR) {
+      console.error(`[browser] WARNING: session '${session.name}' uses profile '${ud}', not .browser-profile — session may be unauthenticated.`);
+    }
+
+    const timeout = parseInt(process.env.BROWSER_EXEC_TIMEOUT_MS || '60000', 10);
+    if (tabName) {
+      const state = loadTabsState();
+      const tabInfo = state.tabs[tabName];
+      if (!tabInfo) fail(`Tab '${tabName}' not found. Run 'tab-list' to see available tabs.`);
+      await helper.runCommand(session, { _: ['tab-select', String(tabInfo.index)] }, REPO_ROOT, timeout);
+      state.current = tabName;
+      saveTabsState(state);
+    }
+    const r = await helper.runCommand(session, helper.buildArgs([subcommand, ...execArgs]), REPO_ROOT, timeout);
+    const text = typeof r === 'string' ? r : (r && r.text) || '';
+    if (text) process.stdout.write(text + (text.endsWith('\n') ? '' : '\n'));
+    if (r && r.isError) process.exit(1);
+    return true;
+  } catch (e) {
+    debug(`fastExec failed, falling back to playwright-cli spawn: ${e.message}`);
+    return false;
+  }
+}
+
 // --- main ---
 
-function main() {
+async function main() {
   const argv = process.argv.slice(2);
   const parsed = parseArgs(argv);
 
@@ -712,9 +785,11 @@ function main() {
 
   const { command, positionals, flags, options } = parsed;
 
-  // Commands that don't need playwright-cli installed
+  // Commands that don't need playwright-cli installed. 'exec' and 'wait-dom'
+  // defer the check: their fast path (session socket) doesn't spawn the CLI.
   const standaloneCommands = new Set(['contribute', 'guides', 'status', 'help']);
-  if (!standaloneCommands.has(command)) {
+  const deferredCheckCommands = new Set(['exec', 'wait-dom']);
+  if (!standaloneCommands.has(command) && !deferredCheckCommands.has(command)) {
     checkPlaywrightCli();
   }
 
@@ -728,7 +803,18 @@ function main() {
       const normalizedUrl = normalizeUrl(url);
       if (!normalizedUrl) fail(`Invalid URL: ${url}`);
 
-      const existing = getHealthySession(null);
+      let existing = getHealthySession(null);
+      if (existing) {
+        // Guard: a session bound to a different profile (e.g. spawned by a bare
+        // 'playwright-cli open' with a temp dir) or headless when headed was
+        // requested must not be reused — close it and open fresh.
+        const rogue = sessionProfileMismatch(existing, flags);
+        if (rogue) {
+          console.error(`[browser] Session '${existing}' ${rogue}. Closing and reopening with .browser-profile.`);
+          try { execFileSync('playwright-cli', [`-s=${existing}`, 'close'], { cwd: REPO_ROOT, stdio: 'pipe', timeout: 10000 }); } catch {}
+          existing = null;
+        }
+      }
       if (existing) {
         console.error(`[browser] Session already active, navigating with goto instead of opening a new one.`);
         runPwCli([`-s=${existing}`, 'goto', normalizedUrl]);
@@ -815,6 +901,12 @@ function main() {
       const subcommand = positionals[0];
       if (!subcommand) fail('exec requires a playwright-cli command: node browser.js exec <cmd> [args...]');
 
+      // Fast path: session-daemon socket for the hot loop (eval, find, click…).
+      // Lifecycle/interactive commands stay on the spawn path.
+      const SPAWN_ONLY = new Set(['open', 'close', 'close-all', 'kill-all', 'pause', 'record', 'install', 'install-browser']);
+      if (!SPAWN_ONLY.has(subcommand) && await fastExec(subcommand, parsed.execArgs, options.tab)) return;
+
+      checkPlaywrightCli();
       const session = getHealthySession(null);
       if (!session) fail(`No active session. Run 'open' first.`);
 
@@ -829,6 +921,37 @@ function main() {
       } else {
         runPwCli([`-s=${session}`, subcommand, ...parsed.execArgs]);
       }
+      return;
+    }
+
+    case 'wait-dom': {
+      // In-page DOM polling: resolves when mutations go quiet (Golden Rule 3).
+      let quiet = 250, timeout = 3000;
+      for (let i = 0; i < positionals.length; i++) {
+        const p = positionals[i];
+        if (p === '--quiet') quiet = parseInt(positionals[++i], 10) || quiet;
+        else if (p === '--timeout') timeout = parseInt(positionals[++i], 10) || timeout;
+        else if (p.startsWith('--quiet=')) quiet = parseInt(p.slice(8), 10) || quiet;
+        else if (p.startsWith('--timeout=')) timeout = parseInt(p.slice(10), 10) || timeout;
+      }
+      const helper = require('./helper');
+      const js = helper.WAIT_DOM_JS(quiet, timeout);
+      const sessionCfg = helper.resolveSession(REPO_ROOT, null);
+      if (sessionCfg && !process.env.BROWSER_NO_FAST) {
+        try {
+          const r = await helper.runCommand(sessionCfg, { _: ['eval', js] }, REPO_ROOT, timeout + 15000);
+          const text = typeof r === 'string' ? r : (r && r.text) || '';
+          if (text) process.stdout.write(text + (text.endsWith('\n') ? '' : '\n'));
+          if (r && r.isError) process.exit(1);
+          return;
+        } catch (e) {
+          debug(`wait-dom fast path failed: ${e.message}`);
+        }
+      }
+      checkPlaywrightCli();
+      const session = getHealthySession(null);
+      if (!session) fail(`No active session. Run 'open' first.`);
+      runPwCli([`-s=${session}`, 'eval', js]);
       return;
     }
 
@@ -935,4 +1058,4 @@ function main() {
   }
 }
 
-main();
+main().catch((e) => fail(e.message));

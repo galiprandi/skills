@@ -219,11 +219,18 @@ node .agents/skills/browser-automation/scripts/browser.js exec find "text to sea
 node .agents/skills/browser-automation/scripts/browser.js exec press Enter
 ```
 
+**Wait for DOM to settle** (after clicks/navigation, instead of `sleep`):
+```bash
+node .agents/skills/browser-automation/scripts/browser.js wait-dom [--quiet <ms>] [--timeout <ms>]
+# waits until no DOM mutations for <quiet> ms (default 250), bounded by <timeout> (default 3000)
+```
+
 **Key wrapper behaviors:**
 - `--profile=.browser-profile` is hardcoded. Cannot be omitted.
 - Profile resolves to `process.cwd()/.browser-profile` (the consuming repo's root), not the skill directory.
-- If a session is already running, `open` auto-navigates instead of failing.
+- If a session is already running, `open` auto-navigates instead of failing — **unless** the session uses a different profile or headless mode when headed is configured (rogue sessions from bare `playwright-cli open` are closed and reopened correctly).
 - Site guides are auto-injected into stdout on `open`, `goto`, and `tab-new` when a matching guide exists.
+- `exec` uses the session daemon's unix socket directly when a session is open (fast path, ~0.5s vs ~2.6s spawn). Falls back to spawning `playwright-cli` automatically. `BROWSER_NO_FAST=1` disables it. Lifecycle/interactive commands (`open`, `close`, `pause`, …) always use the spawn path.
 
 For the full command list (tabs, auth state, debugging), see [references/profile-management.md](references/profile-management.md).
 
@@ -233,7 +240,7 @@ These rules were validated through extensive testing. Breaking them causes failu
 
 1. **KEYBOARD FIRST** — Before any interaction, ask: "Can I do this with the keyboard?" If yes, use `exec press`. Only fall back to clicks/snapshots if no shortcut exists. This is Rule 0 — it overrides all other rules.
 2. **eval > ref-based clicks** — Refs don't persist between CLI calls. Use `eval` to find and click by text in one atomic call.
-3. **In-page polling > shell sleep** — Shell `sleep` kills the session. Use `eval` with `await` polling to wait for elements.
+3. **In-page polling > shell sleep** — Shell `sleep` kills the session. Use `wait-dom` (waits until DOM mutations go quiet) or `eval` with `await` polling to wait for elements.
 4. **Read snapshot file as fallback** — When `exec snapshot` fails, read the auto-generated `.playwright-cli/page-*.yml` file.
 5. **Use URLs directly, not clicks for navigation** — `goto "https://..."` is more reliable than clicking nav links.
 6. **Verify with DOM content, not URL** — SPAs update content without changing the URL. Check DOM state with `eval`.
