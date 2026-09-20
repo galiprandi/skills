@@ -953,7 +953,7 @@ async function main() {
       if (sessionCfg && !process.env.BROWSER_NO_FAST) {
         try {
           const r = await helper.runCommand(sessionCfg, { _: ['eval', js] }, REPO_ROOT, timeout + 15000);
-          const text = typeof r === 'string' ? r : (r && r.text) || '';
+          const text = helper.extractResultValue(r && r.text) ?? (typeof r === 'string' ? r : (r && r.text) || '');
           if (text) process.stdout.write(text + (text.endsWith('\n') ? '' : '\n'));
           if (r && r.isError) process.exit(1);
           return;
@@ -964,7 +964,8 @@ async function main() {
       checkPlaywrightCli();
       const session = getHealthySession(null);
       if (!session) fail(`No active session. Run 'open' first.`);
-      runPwCli([`-s=${session}`, 'eval', js]);
+      const out = runPwCliCapture([`-s=${session}`, 'eval', js], timeout + 15000);
+      process.stdout.write(helper.extractResultValue(out) ?? out);
       return;
     }
 
@@ -984,10 +985,10 @@ async function main() {
       if (sessionCfg && !process.env.BROWSER_NO_FAST) {
         try {
           const r = await helper.runCommand(sessionCfg, { _: ['eval', js] }, REPO_ROOT, timeout + 15000);
-          const text = typeof r === 'string' ? r : (r && r.text) || '';
+          const text = helper.extractResultValue(r && r.text) ?? (typeof r === 'string' ? r : (r && r.text) || '');
           if (text) process.stdout.write(text + (text.endsWith('\n') ? '' : '\n'));
           if (r && r.isError) process.exit(1);
-          if (/found\\?":\s*false/.test(text)) process.exit(1); // grep-style: no match → 1
+          if (/found\\?":\s*false|["']?found["']?:\s*false/.test(text)) process.exit(1); // grep-style: no match → 1
           return;
         } catch (e) {
           debug(`wait-for fast path failed: ${e.message}`);
@@ -998,7 +999,7 @@ async function main() {
       if (!session) fail(`No active session. Run 'open' first.`);
       const out = runPwCliCapture([`-s=${session}`, 'eval', js], timeout + 15000);
       process.stdout.write(out);
-      if (/found\\?":\s*false/.test(out)) process.exit(1);
+      if (/found\\?":\s*false|["']?found["']?:\s*false/.test(out)) process.exit(1);
       return;
     }
 
@@ -1010,7 +1011,7 @@ async function main() {
       if (sessionCfg && !process.env.BROWSER_NO_FAST) {
         try {
           const r = await helper.runCommand(sessionCfg, { _: ['eval', helper.OBSERVE_JS] }, REPO_ROOT);
-          const text = typeof r === 'string' ? r : (r && r.text) || '';
+          const text = helper.extractResultValue(r && r.text) ?? (typeof r === 'string' ? r : (r && r.text) || '');
           if (text) process.stdout.write(text + (text.endsWith('\n') ? '' : '\n'));
           if (r && r.isError) process.exit(1);
           return;
@@ -1021,7 +1022,8 @@ async function main() {
       checkPlaywrightCli();
       const session = getHealthySession(null);
       if (!session) fail(`No active session. Run 'open' first.`);
-      runPwCli([`-s=${session}`, 'eval', helper.OBSERVE_JS]);
+      const out = runPwCliCapture([`-s=${session}`, 'eval', helper.OBSERVE_JS]);
+      process.stdout.write(helper.extractResultValue(out) ?? out);
       return;
     }
 

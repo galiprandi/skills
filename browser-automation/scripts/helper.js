@@ -229,6 +229,18 @@ function buildArgs(tokens) {
   return args;
 }
 
+/**
+ * Extract the value from a daemon eval result text.
+ * Daemon output wraps results as: ### Result\n"<json-escaped>"\n### Ran ...
+ * Returns the inner value (e.g. clean JSON), or null if not parseable.
+ */
+function extractResultValue(text) {
+  if (typeof text !== 'string') return null;
+  const m = text.match(/### Result\n([\s\S]*?)\n### /);
+  if (!m) return null;
+  try { return JSON.parse(m[1]); } catch { return m[1]; }
+}
+
 // --- wait-dom: in-page MutationObserver quiet window ---
 
 const WAIT_DOM_JS = (quietMs, maxMs) => `(async () => {
@@ -262,7 +274,7 @@ const WAIT_FOR_JS = (target, timeoutMs) => `(async () => {
   const m = target.match(/^(css|text|js)=(.*)$/s);
   const kind = m ? m[1] : 'css', val = m ? m[2] : target;
   const check = () => {
-    if (kind === 'css') { const el = document.querySelector(val); return el && el.offsetParent !== null; }
+    if (kind === 'css') { for (const el of document.querySelectorAll(val)) { if (el.offsetParent !== null || el.getClientRects().length) return true; } return false; }
     if (kind === 'text') return document.body && document.body.innerText.toLowerCase().includes(val.toLowerCase());
     try { return !!eval('(' + val + ')')(); } catch { return false; }
   };
@@ -385,16 +397,17 @@ async function main() {
     if (!target) { console.error('[helper] wait-for requires a target: css=<sel> | text=<str> | js=<expr>'); process.exit(2); }
     const timeout = opts.timeout ?? 10000;
     const r = await runCommand(session, { _: ['eval', WAIT_FOR_JS(target, timeout)] }, cwd, timeout + 15000);
-    const text = typeof r === 'string' ? r : r.text ?? '';
-    process.stdout.write(text);
+    const text = extractResultValue(r && r.text) ?? (typeof r === 'string' ? r : r.text ?? '');
+    process.stdout.write(text + (text.endsWith('\n') ? '' : '\n'));
     if (r && r.isError) process.exitCode = 1;
-    else if (/found\\?":\s*false/.test(text)) process.exitCode = 1; // grep-style: no match → 1
+    else if (/found\\?":\s*false|["']?found["']?:\s*false/.test(text)) process.exitCode = 1;
     return;
   }
 
   if (command === 'observe') {
     const r = await runCommand(session, { _: ['eval', OBSERVE_JS] }, cwd);
-    process.stdout.write(typeof r === 'string' ? r : r.text ?? '');
+    const text = extractResultValue(r && r.text) ?? (typeof r === 'string' ? r : r.text ?? '');
+    process.stdout.write(text + (text.endsWith('\n') ? '' : '\n'));
     if (r && r.isError) process.exitCode = 1;
     return;
   }
@@ -415,7 +428,8 @@ async function main() {
     const { opts } = parseExecArgs(rest);
     const js = WAIT_DOM_JS(opts.quiet ?? 250, opts.timeout ?? 3000);
     const r = await runCommand(session, { _: ['eval', js] }, cwd, (opts.timeout ?? 3000) + 10000);
-    process.stdout.write(typeof r === 'string' ? r : r.text ?? JSON.stringify(r));
+    const text = extractResultValue(r && r.text) ?? (typeof r === 'string' ? r : r.text ?? '');
+    process.stdout.write(text + (text.endsWith('\n') ? '' : '\n'));
     if (r && r.isError) process.exitCode = 1;
     return;
   }
@@ -450,4 +464,4 @@ async function main() {
 
 if (require.main === module) main().catch(e => { console.error(`[helper] ${e.message}`); process.exit(1); });
 
-module.exports = { resolveSession, runCommand, runBatch, buildArgs, findWorkspaceDir, listSessions, WAIT_DOM_JS, WAIT_FOR_JS, OBSERVE_JS };
+module.exports = { resolveSession, runCommand, runBatch, buildArgs, findWorkspaceDir, listSessions, extractResultValue, WAIT_DOM_JS, WAIT_FOR_JS, OBSERVE_JS };
