@@ -225,6 +225,28 @@ node .agents/skills/browser-automation/scripts/browser.js wait-dom [--quiet <ms>
 # waits until no DOM mutations for <quiet> ms (default 250), bounded by <timeout> (default 3000)
 ```
 
+**Wait for a target to appear** (in-page polling, no shell sleep):
+```bash
+node .agents/skills/browser-automation/scripts/browser.js wait-for "css=.result"      # visible selector
+node .agents/skills/browser-automation/scripts/browser.js wait-for "text=Message sent" # body text, case-insensitive
+node .agents/skills/browser-automation/scripts/browser.js wait-for "js=() => !!window.appReady" --timeout 15000
+```
+
+**Observe page state** (compact, decision-oriented — preferred input for agents):
+```bash
+node .agents/skills/browser-automation/scripts/browser.js observe
+# → JSON: url, title, h1, scroll, up to 50 interactive elements ordered by
+#   viewport proximity (el0..el49), visible alerts. ~4KB vs 50KB+ snapshots.
+```
+
+**Batch commands** (one process, N commands over the session socket):
+```bash
+echo '[["eval","(() => location.href)()"],["find","Send"],["press","Enter"]]' \
+  | node .agents/skills/browser-automation/scripts/browser.js batch
+# → JSON array [{i, ok, ms, text}]. Stops on first error;
+#   {"commands":[...],"continueOnError":true} to continue.
+```
+
 **Key wrapper behaviors:**
 - `--profile=.browser-profile` is hardcoded. Cannot be omitted.
 - Profile resolves to `process.cwd()/.browser-profile` (the consuming repo's root), not the skill directory.

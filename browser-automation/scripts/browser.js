@@ -665,6 +665,19 @@ function usage() {
     Wait until the DOM stops mutating (MutationObserver quiet window).
     Prefer this over shell sleeps after clicks/navigation.
 
+  node ${scriptPath} wait-for <target> [--timeout <ms>]
+    Wait until a target appears. target: css=<sel> | text=<str> | js=<expr>
+    Example: node ${scriptPath} wait-for "text=Message sent"
+
+  node ${scriptPath} observe
+    Compact page state for decision-making: url, title, h1, up to 50
+    viewport-ordered interactive elements, visible alerts.
+
+  node ${scriptPath} batch [<file.json>|-]
+    Run multiple commands in one process. Input: JSON array of token
+    arrays, e.g. [["eval","(() => 1)()"],["find","text"],["press","Enter"]]
+    or {"commands": [...], "continueOnError": true}.
+
   node ${scriptPath} close [--force]
     Close the browser.
 
@@ -788,7 +801,7 @@ async function main() {
   // Commands that don't need playwright-cli installed. 'exec' and 'wait-dom'
   // defer the check: their fast path (session socket) doesn't spawn the CLI.
   const standaloneCommands = new Set(['contribute', 'guides', 'status', 'help']);
-  const deferredCheckCommands = new Set(['exec', 'wait-dom']);
+  const deferredCheckCommands = new Set(['exec', 'wait-dom', 'wait-for', 'observe', 'batch']);
   if (!standaloneCommands.has(command) && !deferredCheckCommands.has(command)) {
     checkPlaywrightCli();
   }
@@ -953,6 +966,99 @@ async function main() {
       if (!session) fail(`No active session. Run 'open' first.`);
       runPwCli([`-s=${session}`, 'eval', js]);
       return;
+    }
+
+    case 'wait-for': {
+      // In-page polling until a selector/text/predicate appears.
+      let target = null, timeout = 10000;
+      for (let i = 0; i < positionals.length; i++) {
+        const p = positionals[i];
+        if (p === '--timeout') timeout = parseInt(positionals[++i], 10) || timeout;
+        else if (p.startsWith('--timeout=')) timeout = parseInt(p.slice(10), 10) || timeout;
+        else if (!target) target = p;
+      }
+      if (!target) fail('wait-for requires a target: css=<sel> | text=<str> | js=<expr>');
+      const helper = require('./helper');
+      const js = helper.WAIT_FOR_JS(target, timeout);
+      const sessionCfg = helper.resolveSession(REPO_ROOT, null);
+      if (sessionCfg && !process.env.BROWSER_NO_FAST) {
+        try {
+          const r = await helper.runCommand(sessionCfg, { _: ['eval', js] }, REPO_ROOT, timeout + 15000);
+          const text = typeof r === 'string' ? r : (r && r.text) || '';
+          if (text) process.stdout.write(text + (text.endsWith('\n') ? '' : '\n'));
+          if (r && r.isError) process.exit(1);
+          if (/found\\?":\s*false/.test(text)) process.exit(1); // grep-style: no match → 1
+          return;
+        } catch (e) {
+          debug(`wait-for fast path failed: ${e.message}`);
+        }
+      }
+      checkPlaywrightCli();
+      const session = getHealthySession(null);
+      if (!session) fail(`No active session. Run 'open' first.`);
+      const out = runPwCliCapture([`-s=${session}`, 'eval', js], timeout + 15000);
+      process.stdout.write(out);
+      if (/found\\?":\s*false/.test(out)) process.exit(1);
+      return;
+    }
+
+    case 'observe': {
+      // Compact page state for agent decision-making: url, title, h1,
+      // viewport-ordered interactive elements, visible alerts.
+      const helper = require('./helper');
+      const sessionCfg = helper.resolveSession(REPO_ROOT, null);
+      if (sessionCfg && !process.env.BROWSER_NO_FAST) {
+        try {
+          const r = await helper.runCommand(sessionCfg, { _: ['eval', helper.OBSERVE_JS] }, REPO_ROOT);
+          const text = typeof r === 'string' ? r : (r && r.text) || '';
+          if (text) process.stdout.write(text + (text.endsWith('\n') ? '' : '\n'));
+          if (r && r.isError) process.exit(1);
+          return;
+        } catch (e) {
+          debug(`observe fast path failed: ${e.message}`);
+        }
+      }
+      checkPlaywrightCli();
+      const session = getHealthySession(null);
+      if (!session) fail(`No active session. Run 'open' first.`);
+      runPwCli([`-s=${session}`, 'eval', helper.OBSERVE_JS]);
+      return;
+    }
+
+    case 'batch': {
+      // JSON array of command token-arrays from file arg or stdin.
+      // [["eval","(() => 1)()"],["find","x"]] or {"commands":[...],"continueOnError":true}
+      const file = positionals[0];
+      let input = '';
+      if (file && file !== '-') input = fs.readFileSync(file, 'utf8');
+      else input = fs.readFileSync(0, 'utf8');
+      let spec;
+      try { spec = JSON.parse(input); } catch (e) { fail(`batch: invalid JSON input: ${e.message}`); }
+      const commands = Array.isArray(spec) ? spec : spec && spec.commands;
+      if (!Array.isArray(commands)) fail('batch: expected a JSON array of commands or {"commands":[...]}');
+      for (const c of commands) {
+        if (!Array.isArray(c) || !c.length || !c.every(t => typeof t === 'string')) {
+          fail(`batch: each command must be a non-empty array of strings, got: ${JSON.stringify(c)}`);
+        }
+      }
+
+      const helper = require('./helper');
+      const sessionCfg = helper.resolveSession(REPO_ROOT, null);
+      if (sessionCfg && !process.env.BROWSER_NO_FAST) {
+        try {
+          const timeout = parseInt(process.env.BROWSER_EXEC_TIMEOUT_MS || '60000', 10);
+          const results = await helper.runBatch(sessionCfg, commands, REPO_ROOT, {
+            timeoutMs: timeout,
+            continueOnError: !!(spec && spec.continueOnError),
+          });
+          console.log(JSON.stringify(results, null, 2));
+          if (results.some(r => !r.ok)) process.exit(1);
+          return;
+        } catch (e) {
+          debug(`batch fast path failed: ${e.message}`);
+        }
+      }
+      fail('batch requires an active session (socket fast path). Run open first.');
     }
 
     case 'close': {

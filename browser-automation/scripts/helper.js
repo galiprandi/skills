@@ -131,6 +131,8 @@ function resolveSession(cwd, sessionName) {
   const sessions = listSessions()
     .filter(c => (c.workspaceDir || null) === (workspaceDir || null))
     .filter(c => !version || !c.version || sameMinor(c.version, version))
+    // Stale .session files persist after close; the socket file must exist.
+    .filter(c => c.socketPath && fs.existsSync(c.socketPath))
     .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   if (name) return sessions.find(c => c.name === name) || null;
   return sessions.find(c => c.name === 'default') || sessions[0] || null;
@@ -246,6 +248,87 @@ const WAIT_DOM_JS = (quietMs, maxMs) => `(async () => {
   });
 })()`;
 
+// --- wait-for: poll until selector/text/predicate matches ---
+
+/**
+ * target forms:
+ *   css=<selector>  → element present and visible
+ *   text=<string>   → substring present in body innerText (case-insensitive)
+ *   js=<expression> → expression evaluates truthy
+ */
+const WAIT_FOR_JS = (target, timeoutMs) => `(async () => {
+  const target = ${JSON.stringify(target)}, timeout = ${timeoutMs};
+  const t0 = Date.now();
+  const m = target.match(/^(css|text|js)=(.*)$/s);
+  const kind = m ? m[1] : 'css', val = m ? m[2] : target;
+  const check = () => {
+    if (kind === 'css') { const el = document.querySelector(val); return el && el.offsetParent !== null; }
+    if (kind === 'text') return document.body && document.body.innerText.toLowerCase().includes(val.toLowerCase());
+    try { return !!eval('(' + val + ')')(); } catch { return false; }
+  };
+  while (Date.now() - t0 < timeout) {
+    if (check()) return JSON.stringify({ found: true, kind, elapsed_ms: Date.now() - t0 });
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return JSON.stringify({ found: false, kind, elapsed_ms: Date.now() - t0, timeout: true });
+})()`;
+
+// --- observe: compact page state for agent decision-making ---
+
+const OBSERVE_JS = `(() => {
+  const SEL = 'a[href],button,input,select,textarea,[role="button"],[role="link"],[role="textbox"],[contenteditable="true"],[contenteditable=""],summary,[onclick]';
+  const vh = innerHeight;
+  const visible = el => {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none';
+  };
+  const distToViewport = r => r.top >= 0 && r.top < vh ? 0 : r.top < 0 ? -r.top : r.top - vh;
+  const label = el => (el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('title') || el.name || '').trim().replace(/\\s+/g, ' ').slice(0, 60);
+  const els = [...document.querySelectorAll(SEL)].filter(visible)
+    .map(el => ({ el, d: distToViewport(el.getBoundingClientRect()) }))
+    .sort((a, b) => a.d - b.d).slice(0, 50)
+    .map(({ el }, i) => {
+      const t = { id: 'el' + i, tag: el.tagName.toLowerCase(), text: label(el) };
+      const role = el.getAttribute('role'); if (role) t.role = role;
+      if (el.tagName === 'A') t.href = (el.getAttribute('href') || '').slice(0, 80);
+      if (el.tagName === 'INPUT') { t.type = el.type; if (el.getAttribute('placeholder')) t.ph = el.getAttribute('placeholder').slice(0, 40); }
+      return t;
+    });
+  const alerts = [...document.querySelectorAll('[role="alert"],[aria-live="polite"],[aria-live="assertive"],.toast,[class*="toast"],[class*="notification-banner"]')]
+    .filter(visible).map(el => (el.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 120)).filter(Boolean).slice(0, 5);
+  return JSON.stringify({
+    url: location.href, title: document.title,
+    h1: (document.querySelector('h1') || {}).innerText?.trim().slice(0, 120) || null,
+    scroll: { y: Math.round(scrollY), height: document.documentElement.scrollHeight },
+    elements: els, alerts,
+  }, null, 0);
+})()`;
+
+/** Run several commands sequentially on the same session. Stops on first error unless continueOnError. */
+async function runBatch(sessionConfig, commands, cwd, { timeoutMs = DEFAULT_TIMEOUT_MS, continueOnError = false } = {}) {
+  const results = [];
+  for (let i = 0; i < commands.length; i++) {
+    const tokens = commands[i];
+    if (!Array.isArray(tokens) || !tokens.length) {
+      results.push({ i, ok: false, error: 'invalid command (expected [cmd, ...args])' });
+      if (!continueOnError) break;
+      continue;
+    }
+    const t0 = Date.now();
+    try {
+      const r = await runCommand(sessionConfig, buildArgs(tokens.map(String)), cwd, timeoutMs);
+      const text = typeof r === 'string' ? r : (r && r.text) || '';
+      results.push({ i, ok: !(r && r.isError), ms: Date.now() - t0, text });
+      if (r && r.isError && !continueOnError) break;
+    } catch (e) {
+      results.push({ i, ok: false, ms: Date.now() - t0, error: e.message });
+      if (!continueOnError) break;
+    }
+  }
+  return results;
+}
+
 // --- CLI ---
 
 function parseExecArgs(argv) {
@@ -269,6 +352,9 @@ async function main() {
     console.log('helper.js — fast socket path to playwright-cli session daemon\n');
     console.log('  node helper.js exec <cmd> [args...] [--tab <name>] [--timeout ms]');
     console.log('  node helper.js wait-dom [--quiet ms] [--timeout ms]');
+    console.log('  node helper.js wait-for <css=sel|text=str|js=expr> [--timeout ms]');
+    console.log('  node helper.js observe');
+    console.log('  echo \'[["eval","(() => 1)()"]]\' | node helper.js batch');
     console.log('  node helper.js status');
     return;
   }
@@ -291,6 +377,38 @@ async function main() {
   if (!session) {
     console.error('[helper] no active playwright-cli session for this workspace. Open one via browser.js first.');
     process.exit(2);
+  }
+
+  if (command === 'wait-for') {
+    const { positionals, opts } = parseExecArgs(rest);
+    const target = positionals[0];
+    if (!target) { console.error('[helper] wait-for requires a target: css=<sel> | text=<str> | js=<expr>'); process.exit(2); }
+    const timeout = opts.timeout ?? 10000;
+    const r = await runCommand(session, { _: ['eval', WAIT_FOR_JS(target, timeout)] }, cwd, timeout + 15000);
+    const text = typeof r === 'string' ? r : r.text ?? '';
+    process.stdout.write(text);
+    if (r && r.isError) process.exitCode = 1;
+    else if (/found\\?":\s*false/.test(text)) process.exitCode = 1; // grep-style: no match → 1
+    return;
+  }
+
+  if (command === 'observe') {
+    const r = await runCommand(session, { _: ['eval', OBSERVE_JS] }, cwd);
+    process.stdout.write(typeof r === 'string' ? r : r.text ?? '');
+    if (r && r.isError) process.exitCode = 1;
+    return;
+  }
+
+  if (command === 'batch') {
+    // JSON from file arg or stdin: [["eval","(() => 1)()"],["find","x"]] or {commands, continueOnError}
+    let input = rest[0] && fs.existsSync(rest[0]) ? fs.readFileSync(rest[0], 'utf8') : '';
+    if (!input) input = fs.readFileSync(0, 'utf8');
+    const spec = JSON.parse(input);
+    const commands = Array.isArray(spec) ? spec : spec.commands;
+    const results = await runBatch(session, commands, cwd, { continueOnError: !!(spec && spec.continueOnError) });
+    console.log(JSON.stringify(results, null, 2));
+    if (results.some(r => !r.ok)) process.exitCode = 1;
+    return;
   }
 
   if (command === 'wait-dom') {
@@ -332,4 +450,4 @@ async function main() {
 
 if (require.main === module) main().catch(e => { console.error(`[helper] ${e.message}`); process.exit(1); });
 
-module.exports = { resolveSession, runCommand, buildArgs, findWorkspaceDir, listSessions, WAIT_DOM_JS };
+module.exports = { resolveSession, runCommand, runBatch, buildArgs, findWorkspaceDir, listSessions, WAIT_DOM_JS, WAIT_FOR_JS, OBSERVE_JS };
