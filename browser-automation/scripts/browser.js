@@ -95,9 +95,33 @@ function normalizeUrl(url) {
   }
 }
 
+/**
+ * Resolve how to invoke playwright-cli as [file, ...prefixArgs].
+ * Preferred: `node <package entrypoint>` — works on every platform and
+ * avoids the .cmd shim problem on Windows (execFileSync can't run .cmd).
+ * Fallback win32: cmd.exe /c playwright-cli. Fallback unix: bare binary.
+ */
+let _pwCli = null;
+function pwCli() {
+  if (_pwCli) return _pwCli;
+  try {
+    const entry = require('./helper').cliEntrypoint();
+    if (entry) return (_pwCli = [process.execPath, entry]);
+  } catch {}
+  _pwCli = process.platform === 'win32'
+    ? ['cmd.exe', '/d', '/s', '/c', 'playwright-cli']
+    : ['playwright-cli'];
+  return _pwCli;
+}
+
+function pwExec(args, opts) {
+  const [file, ...prefix] = pwCli();
+  return execFileSync(file, [...prefix, ...args], opts);
+}
+
 function checkPlaywrightCli() {
   try {
-    execFileSync('playwright-cli', ['--version'], {
+    pwExec(['--version'], {
       encoding: 'utf8',
       timeout: 3000,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -112,14 +136,14 @@ function checkPlaywrightCli() {
 
 function runPwCli(args) {
   try {
-    execFileSync('playwright-cli', args, { cwd: REPO_ROOT, stdio: 'inherit' });
+    pwExec(args, { cwd: REPO_ROOT, stdio: 'inherit' });
   } catch (e) {
     fail(`playwright-cli failed: ${e.message}`);
   }
 }
 
 function runPwCliCapture(args, timeoutMs = 10000) {
-  return execFileSync('playwright-cli', args, {
+  return pwExec(args, {
     cwd: REPO_ROOT,
     encoding: 'utf8',
     timeout: timeoutMs,
@@ -132,7 +156,7 @@ function runPwCliCapture(args, timeoutMs = 10000) {
 function getActiveSessions() {
   let out;
   try {
-    out = execFileSync('playwright-cli', ['list', '--json'], {
+    out = pwExec(['list', '--json'], {
       encoding: 'utf8',
       timeout: 5000,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -167,7 +191,7 @@ function getSession(name) {
 
 function isSessionHealthy(sessionName) {
   try {
-    execFileSync('playwright-cli', [`-s=${sessionName}`, 'eval', '1+1'], {
+    pwExec([`-s=${sessionName}`, 'eval', '1+1'], {
       encoding: 'utf8',
       timeout: 10000,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -185,9 +209,9 @@ function getHealthySession(name) {
   // Zombie session — clean it up
   console.error(`[browser] Session '${session}' is unresponsive. Cleaning up.`);
   try {
-    execFileSync('playwright-cli', [`-s=${session}`, 'close'], { cwd: REPO_ROOT, stdio: 'pipe', timeout: 5000 });
+    pwExec([`-s=${session}`, 'close'], { cwd: REPO_ROOT, stdio: 'pipe', timeout: 5000 });
   } catch {
-    try { execFileSync('playwright-cli', ['kill-all'], { cwd: REPO_ROOT, stdio: 'inherit' }); } catch {}
+    try { pwExec(['kill-all'], { cwd: REPO_ROOT, stdio: 'inherit' }); } catch {}
   }
   return null;
 }
@@ -824,7 +848,7 @@ async function main() {
         const rogue = sessionProfileMismatch(existing, flags);
         if (rogue) {
           console.error(`[browser] Session '${existing}' ${rogue}. Closing and reopening with .browser-profile.`);
-          try { execFileSync('playwright-cli', [`-s=${existing}`, 'close'], { cwd: REPO_ROOT, stdio: 'pipe', timeout: 10000 }); } catch {}
+          try { pwExec([`-s=${existing}`, 'close'], { cwd: REPO_ROOT, stdio: 'pipe', timeout: 10000 }); } catch {}
           existing = null;
         }
       }
@@ -1070,10 +1094,10 @@ async function main() {
         return;
       }
       try {
-        execFileSync('playwright-cli', [`-s=${session}`, 'close'], { cwd: REPO_ROOT, stdio: 'inherit' });
+        pwExec([`-s=${session}`, 'close'], { cwd: REPO_ROOT, stdio: 'inherit' });
       } catch {
-        try { execFileSync('playwright-cli', ['close-all'], { cwd: REPO_ROOT, stdio: 'inherit' }); }
-        catch { try { execFileSync('playwright-cli', ['kill-all'], { cwd: REPO_ROOT, stdio: 'inherit' }); } catch {} }
+        try { pwExec(['close-all'], { cwd: REPO_ROOT, stdio: 'inherit' }); }
+        catch { try { pwExec(['kill-all'], { cwd: REPO_ROOT, stdio: 'inherit' }); } catch {} }
       }
       saveTabsState({ tabs: {}, current: null });
       console.log('[browser] Session closed. Did anything fail or did you find a better path? Run: contribute');
@@ -1082,9 +1106,9 @@ async function main() {
 
     case 'close-all': {
       try {
-        execFileSync('playwright-cli', ['close-all'], { cwd: REPO_ROOT, stdio: 'inherit' });
+        pwExec(['close-all'], { cwd: REPO_ROOT, stdio: 'inherit' });
       } catch {
-        try { execFileSync('playwright-cli', ['kill-all'], { cwd: REPO_ROOT, stdio: 'inherit' }); }
+        try { pwExec(['kill-all'], { cwd: REPO_ROOT, stdio: 'inherit' }); }
         catch { debug('close-all: both close-all and kill-all failed'); }
       }
       saveTabsState({ tabs: {}, current: null });

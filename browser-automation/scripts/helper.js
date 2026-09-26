@@ -85,15 +85,49 @@ function listSessions() {
   return out;
 }
 
-/** Locate the installed playwright-cli package dir (null if not found). PATH scan, no spawn. */
+function isCliPackageDir(dir) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).name === '@playwright/cli';
+  } catch { return false; }
+}
+
+/**
+ * Locate the installed playwright-cli package dir (null if not found).
+ * PATH scan, no spawn. On unix the bin is a symlink whose realpath lands
+ * inside the package. On Windows the shim is a .cmd in the npm/pnpm prefix,
+ * so the package lives at <prefix>/node_modules/@playwright/cli.
+ */
 function cliPackageDir() {
+  const names = process.platform === 'win32' ? ['playwright-cli.cmd', 'playwright-cli'] : ['playwright-cli'];
   for (const dir of (process.env.PATH || '').split(path.delimiter)) {
-    try {
-      const bin = path.join(dir, 'playwright-cli');
-      if (fs.existsSync(bin)) return path.dirname(fs.realpathSync(bin));
-    } catch {}
+    for (const name of names) {
+      try {
+        const bin = path.join(dir, name);
+        if (!fs.existsSync(bin)) continue;
+        const resolved = path.dirname(fs.realpathSync(bin));
+        if (isCliPackageDir(resolved)) return resolved;
+        const nested = path.join(dir, 'node_modules', '@playwright', 'cli');
+        if (isCliPackageDir(nested)) return nested;
+      } catch {}
+    }
   }
   return null;
+}
+
+/**
+ * Absolute path to the playwright-cli JS entrypoint (package.json bin).
+ * Lets callers run `node <entrypoint>` instead of the platform shim —
+ * avoids .cmd/spawn issues on Windows entirely.
+ */
+function cliEntrypoint() {
+  const dir = cliPackageDir();
+  if (!dir) return null;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+    const binRel = (pkg.bin && (pkg.bin['playwright-cli'] || Object.values(pkg.bin)[0])) || 'playwright-cli.js';
+    const entry = path.join(dir, binRel);
+    return fs.existsSync(entry) ? entry : null;
+  } catch { return null; }
 }
 
 /**
@@ -132,7 +166,9 @@ function resolveSession(cwd, sessionName) {
     .filter(c => (c.workspaceDir || null) === (workspaceDir || null))
     .filter(c => !version || !c.version || sameMinor(c.version, version))
     // Stale .session files persist after close; the socket file must exist.
-    .filter(c => c.socketPath && fs.existsSync(c.socketPath))
+    // On win32 the daemon uses a named pipe (\\.\pipe\pw-...) which is not
+    // stat-able — liveness is proven by the RPC connect instead.
+    .filter(c => c.socketPath && (process.platform === 'win32' || fs.existsSync(c.socketPath)))
     .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   if (name) return sessions.find(c => c.name === name) || null;
   return sessions.find(c => c.name === 'default') || sessions[0] || null;
@@ -464,4 +500,4 @@ async function main() {
 
 if (require.main === module) main().catch(e => { console.error(`[helper] ${e.message}`); process.exit(1); });
 
-module.exports = { resolveSession, runCommand, runBatch, buildArgs, findWorkspaceDir, listSessions, extractResultValue, WAIT_DOM_JS, WAIT_FOR_JS, OBSERVE_JS };
+module.exports = { resolveSession, runCommand, runBatch, buildArgs, findWorkspaceDir, listSessions, extractResultValue, cliPackageDir, cliEntrypoint, WAIT_DOM_JS, WAIT_FOR_JS, OBSERVE_JS };

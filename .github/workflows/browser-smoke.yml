@@ -1,0 +1,65 @@
+# Cross-platform smoke test for browser-automation/scripts/browser.js
+#
+# Verifies the wrapper end-to-end on Linux, macOS and Windows:
+#   open → exec (fast socket/named-pipe path) → exec (spawn path) → close
+#
+# Windows coverage matters: playwright-cli installs a .cmd shim there, so
+# spawning must go through the resolved JS entrypoint, and the session
+# daemon listens on a named pipe instead of a unix socket.
+
+name: browser-smoke
+
+on:
+  pull_request:
+    paths:
+      - "browser-automation/scripts/**"
+      - ".github/workflows/browser-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    env:
+      BROWSER_NO_UPDATE_CHECK: 1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install playwright-cli
+        run: |
+          npm install -g @playwright/cli
+          playwright-cli --version
+
+      - name: Install browser
+        run: playwright-cli install-browser
+
+      - name: Open (headless)
+        run: node browser-automation/scripts/browser.js open https://example.com
+
+      - name: Exec via session socket / named pipe (fast path)
+        run: node browser-automation/scripts/browser.js exec eval "(() => document.title)()"
+
+      - name: Exec via playwright-cli spawn (fallback path)
+        run: node browser-automation/scripts/browser.js exec eval "(() => location.href)()"
+        env:
+          BROWSER_NO_FAST: 1
+
+      - name: Status
+        run: node browser-automation/scripts/browser.js status
+
+      - name: Close
+        if: always()
+        run: node browser-automation/scripts/browser.js close
