@@ -80,3 +80,22 @@ Docs shares the same editing shortcuts: `Ctrl+b/i/u`, `Ctrl+k` (link), `Ctrl+f` 
 - **Two-key shortcuts:** like Gmail, send sequences (e.g. `Alt+i` then `r`) as ONE `exec press "Alt+i"` followed quickly — or use `batch` to guarantee latency: `[["press","Alt+i"],["press","r"]]`.
 - **Reading data:** for extracting cell values, `eval` on the DOM is unreliable (canvas-rendered grid). Prefer copy range + read clipboard, or File → Download via tool finder.
 - **Spanish locale:** some date/time shortcuts differ (`Ctrl+Shift+d` date, `Ctrl+Shift+h` time in ES/DE/IT/PT).
+
+## Sheets — cell navigation & bulk editing (validated 2026-10-04)
+
+- **`#t-name-box`** (the input at top-left, "Cuadro de nombre") — jump to any cell or range by reference: `exec fill` it with `A2` or `E2:E12`, then `Enter`. Far more reliable than clicking cells in the canvas. Works in any sheet tab.
+- **TSV paste via clipboard**: write a tab/newline-separated block to the clipboard (`page.evaluate` + `navigator.clipboard.writeText`), click the anchor cell, `Ctrl+V` — fills multi-row/multi-column ranges in one shot. More robust than typing cell by cell.
+- **`u$s` prefix bug**: typing or pasting `u$s 123,45` makes Sheets parse it as currency and store `u 123,45` (eats `$s`). If the column's number format already prefixes `u$s`, write only the number. Same for any custom prefix — never type the prefix itself.
+- **Clone formatting + value**: `Ctrl+C` a healthy cell, `Ctrl+V` on a corrupted one — restores format and content; then just retype the value. Useful when a cell's format got mangled by a bad paste.
+- **Read a cell's formula**: select the cell via `#t-name-box`, then read `.cell-input` (the formula bar element) — the DOM grid does not expose formulas.
+
+## Sheets — formulas & locale (validated 2026-10-04)
+
+- **es_AR locale**: argument separator is `;` (comma is the decimal separator). Spanish function names (`SI`, `TIR.NO.PER`, `HOY`) work; mixing English names with `,` separators produces `#ERROR`/`#REF`. Use `;` always.
+- **`XIRR`/`TIR.NO.PER` does not accept array literals `{}` or cross-sheet ranges** in some workbooks (returns `#ERROR`/`#REF`). Workaround: helper columns in the source tab (negated flows + dates), then reference a single cell (`=Tab!I1`) from the summary sheet.
+- **Spill ranges** (`FILTER`/`ARRAYFORMULA`): a manually written cell inside the spill range breaks the whole array (`#REF!`). Never write under/beside a spill formula that will occupy that space.
+
+## Sheets — programmatic read
+
+- **CSV export** (fastest full read): `page.context().request.get('https://docs.google.com/spreadsheets/d/{doc}/export?format=csv&gid={gid}')` — uses the browser session's cookies, no DOM scraping. Get `gid` from the tab's URL. Export can lag ~2s behind edits — wait before verifying.
+
