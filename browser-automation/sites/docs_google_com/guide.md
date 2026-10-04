@@ -97,5 +97,5 @@ Docs shares the same editing shortcuts: `Ctrl+b/i/u`, `Ctrl+k` (link), `Ctrl+f` 
 
 ## Sheets — programmatic read
 
-- **CSV export** (fastest full read): `page.context().request.get('https://docs.google.com/spreadsheets/d/{doc}/export?format=csv&gid={gid}')` — uses the browser session's cookies, no DOM scraping. Get `gid` from the tab's URL. Export can lag ~2s behind edits — wait before verifying.
+- **CSV export** (fastest full read): `exec eval` with `(async () => (await fetch('https://docs.google.com/spreadsheets/d/{doc}/export?format=csv&gid={gid}', {credentials:'include'})).text())()` — runs in the page context so it uses the browser session's cookies, no DOM scraping. Get `doc`/`gid` from the tab's URL. Export can lag ~2s behind edits — wait before verifying.
 
