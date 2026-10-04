@@ -267,6 +267,7 @@ These rules were validated through extensive testing. Breaking them causes failu
 5. **Use URLs directly, not clicks for navigation** — `goto "https://..."` is more reliable than clicking nav links.
 6. **Verify with DOM content, not URL** — SPAs update content without changing the URL. Check DOM state with `eval`.
 7. **Batch operations into a single eval call** — Wait + click + verify in one `eval` is more robust than multiple CLI calls.
+8. **Accessibility-first navigation: keyboard over snapshot/click loops** — Even without app shortcuts, standard keyboard navigation beats the snapshot→click→snapshot→click cycle. Fill forms end-to-end via keyboard: focus the first field, type, `Tab` to the next, repeat, `Enter` to submit — one sequential flow, no refs needed. Use `Tab`/`Shift+Tab` between controls, `Enter`/`Space` to activate, arrow keys in radios/selects/menus, `Esc` to close overlays. Keyboard focus follows the accessibility tree, not generated CSS classes, so it survives site redeploys. It also produces input events closer to a human's, which **mitigates bot detection** triggered by programmatic ref/coordinate clicks. Interaction preference order: (1) app keyboard shortcuts, (2) standard keyboard navigation, (3) internal API via `eval` + fetch, (4) ref-based clicks as last resort. Always verify focus landed where expected by checking DOM state (Rule 6) — never assume.
 
 **Chaining:** Chain `open && eval` in a single shell command to prevent session death between calls.
 
