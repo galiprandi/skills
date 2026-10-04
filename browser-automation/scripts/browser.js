@@ -413,6 +413,7 @@ const DOMAIN_ALIASES = {
   'web.whatsapp.com': 'whatsapp_com',
   'whatsapp.com': 'whatsapp_com',
   'web.telegram.org': 'telegram_org',
+  'sheets.google.com': 'docs_google_com',
 };
 
 // Path-based guide overrides: hostname/path → specific guide file (not guide.md)
