@@ -443,6 +443,16 @@ Gmail compose is **NOT** an iframe. It is `div[role=dialog]` in the main documen
 | Body | `textarea[aria-label="Cuerpo del mensaje"]` | English: `aria-label="Message body"`. NOT a contenteditable div |
 | Send button | `div[role=button][aria-label*="Enviar"]` | English: `aria-label*="Send"` |
 
+**⚠️ Gemini editor trap (validated 2026-10-05):** Gmail now renders TWO `div[contenteditable=true]` areas — the real body `aria-label="Cuerpo del mensaje"` AND a Gemini helper `aria-label="Describe tu mensaje"` (English: `"Message body"` and `"Describe your message"`). The body may be a `textarea` OR a `contenteditable` div depending on compose mode — select by `aria-label`, never "the last visible contenteditable" or `.pop()` on all contenteditables: that grabs the Gemini box, the text appears on screen, and **the email goes out blank** (verified by self-send). Always filter on the body label:
+
+```js
+document.querySelector('textarea[aria-label="Cuerpo del mensaje"], div[contenteditable=true][aria-label="Cuerpo del mensaje"], div[contenteditable=true][aria-label="Message body"]')
+```
+
+Same trap in **inline replies** (the reply draft at thread bottom has the same pair of editors).
+
+**✅ Keyboard-first compose (PREFERRED — no selectors, immune to the Gemini trap):** `press c` opens compose with focus already on **To** → `type` the address → `Enter` confirms the chip → `Tab` to Subject → `type` → `Tab` to body → `type` → `press "Control+Enter"` sends. Same for replies: `press r` inside a thread opens the reply editor with focus on the body. Zero DOM selectors needed.
+
 ### Open compose dialog
 
 ```bash
