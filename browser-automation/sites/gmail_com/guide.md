@@ -451,6 +451,8 @@ document.querySelector('textarea[aria-label="Cuerpo del mensaje"], div[contented
 
 Same trap in **inline replies** (the reply draft at thread bottom has the same pair of editors).
 
+**✅ Keyboard-first compose (PREFERRED — no selectors, immune to the Gemini trap):** `press c` opens compose with focus already on **To** → `type` the address → `Enter` confirms the chip → `Tab` to Subject → `type` → `Tab` to body → `type` → `press "Control+Enter"` sends. Same for replies: `press r` inside a thread opens the reply editor with focus on the body. Zero DOM selectors needed.
+
 ### Open compose dialog
 
 ```bash
