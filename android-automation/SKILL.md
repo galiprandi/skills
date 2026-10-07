@@ -27,9 +27,78 @@ Early version: this skill currently covers **installation and device connection 
 ## Prerequisites
 
 - `adb` (Android SDK Platform-Tools) — see [Setup](#setup)
-- An Android device with **Developer Options** enabled:
-  1. Settings → About phone → tap **Build number** 7 times
-  2. Settings → System → Developer options → enable **USB debugging** (and **Wireless debugging** on Android 11+)
+- An Android device with **Developer Options** enabled — see [Enabling Developer Options](#enabling-developer-options)
+
+## Enabling Developer Options
+
+**Core principle: minimize user steps.** Everything that can be done or detected from the computer, do it yourself — OS-specific tooling, mDNS discovery, port rotation, model detection once connected (`getprop`). The user should only touch the phone for things that physically require it (enabling toggles, reading one-time codes). Fewer user steps = fewer failure points = more resilient connection.
+
+**First: ask the user for the device brand and model** if they haven't said it, and whether they already see "Developer options" in Settings. The exact menu paths vary per OEM — do NOT recite the generic path if you know the specific one.
+
+**Guide adaptively — one step at a time, adjusting to the user's situation.** Do NOT dump the full instruction list at once, and do NOT follow a fixed script. Ask one question / give one action, wait for the reply, then pick the next step based on what they report.
+
+First, determine the starting state by asking (combine in ONE question when possible — e.g. "What brand/model is it, and do you see Developer options in Settings?"):
+
+- **Brand and model** → decides the menu paths (see table below)
+- **Is "Developer options" already visible in Settings?** → if yes, skip activation entirely
+- **Android version** (ask or infer from model; Settings → About phone shows it) → Android <11 has no Wireless debugging → plan `tcpip`+USB instead of `pair`
+- **Is the user on WiFi with the phone?** → no WiFi means wireless debugging can't work → fall back to USB
+- **Is a USB cable/computer port available?** → affects which connection method is even possible
+
+Then walk them through only the steps their situation needs, in order:
+
+1. (skip if already done) Enable Developer Options: OEM-specific path to Build number → tap 7× (mention PIN prompt + toast)
+2. Enable the needed toggles: Wireless debugging (Android 11+, on WiFi) and/or USB debugging
+3. Handle OEM-specific blockers if they appear (see below)
+4. Proceed to pairing/connection
+
+Keep each message to a single action or question. If the user reports a problem mid-way, address only that problem before continuing. When a step has multiple actions, format them as a **numbered list, one action per line** — much easier to follow on the phone than prose.
+
+**Do the connect-port lookup yourself.** After `adb pair` succeeds, don't ask the user for the connection port — discover it via mDNS, trying each of these in order (availability varies by OS):
+
+1. `adb mdns services` — built-in, but unreliable in some packaged builds (e.g. Debian's lists nothing)
+2. `avahi-browse -rt _adb-tls-connect._tcp` (Linux with avahi) — resolves name, IP, **port**
+3. `dns-sd -B _adb-tls-connect._tcp` then `dns-sd -L <name> _adb-tls-connect._tcp` (macOS)
+4. Windows: `adb mdns services` is usually the only option; if it fails, ask the user to read the port off the Wireless debugging screen (it differs from the pairing port)
+
+Then `adb connect <ip>:<port>` and verify with `adb devices -l` + `adb shell getprop ro.product.model`.
+
+**Resilience checklist — keep trying before asking the user:**
+- `connect` refused → port rotated → re-run mDNS discovery (the port changes when Wireless debugging is toggled or the network changes)
+- mDNS finds nothing → confirm both devices are on the same LAN; check router for AP isolation
+- pairing expired → codes are single-use; ask the user to open the pairing dialog again for a fresh code
+- Wired path always available as fallback: `adb tcpip 5555` + `adb connect <ip>:5555` over USB (needs USB once per boot)
+- The pairing code dialog stays open while pairing — keep the user on that screen until `adb pair` returns
+
+**After connecting, always close out the session:** send `adb shell input keyevent KEYCODE_HOME` so the phone returns to the launcher (leaving it mid-Settings is confusing), then tell the user the connection is ready and which device/model responded.
+
+Universal flow (constant across brands): find **Build number** and tap it **7 times**; the device asks for PIN/pattern and confirms with a toast ("You are now a developer"). Then enable **USB debugging** and **Wireless debugging** (Android 11+) inside Developer options.
+
+Per-OEM paths to the Build number entry:
+
+| Brand | Path to Build number | Developer options location |
+|---|---|---|
+| Samsung (One UI) | Settings → About phone → **Software information** → Build number | Settings → Developer options (bottom of main Settings) |
+| Google Pixel / stock Android | Settings → About phone → Build number | Settings → System → Developer options |
+| Xiaomi / Redmi / POCO (MIUI, HyperOS) | Settings → About phone → **MIUI version** / OS version (tap 7×, not Build number) | Settings → Additional settings → Developer options |
+| OnePlus (OxygenOS) | Settings → About phone → **Version** → Build number | Settings → System → Developer options |
+| Motorola | Settings → About phone → Build number | Settings → System → Developer options |
+| Huawei / Honor (EMUI/MagicOS) | Settings → About phone → Build number | Settings → System & updates → Developer options |
+| Oppo / Realme (ColorOS) | Settings → About phone → Version → Build number | Settings → Additional settings → Developer options |
+| Vivo (FuntouchOS) | Settings → More settings → About phone → **Software version** → Build number | Settings → More settings → Developer options |
+| Sony (Xperia) | Settings → About phone → Build number | Settings → System → Developer options |
+
+If the brand isn't listed or menus differ, tell the user to use the **Settings search bar** and search for "Build number" — it jumps straight to the right screen.
+
+### OEM-specific blockers
+
+Offer these only when the device needs them (i.e., when the toggle is missing, greyed out, or shows a blocked message):
+
+- **Samsung — "Auto Blocker"** (One UI 6+): blocks USB debugging and Wireless debugging entirely; the wireless toggle shows "Blocked by Auto Blocker". Fix: Settings → **Security and privacy → Auto Blocker** → turn off. Note it also blocks sideloaded app installs; it can be re-enabled after the session but will block debugging again.
+- **Samsung — Wireless debugging greyed without WiFi:** the toggle requires an active WiFi connection. Connect to WiFi first.
+- **Xiaomi (MIUI/HyperOS):** USB debugging additionally requires a **Mi account signed in + SIM inserted**; there's a separate "USB debugging (Security settings)" toggle needed for granting permissions/input simulation.
+- **Huawei:** may require disabling "Monitor ADB installation" or signing into a Huawei ID for some debug features.
+- **Oppo/Vivo/Realme:** USB debugging sometimes auto-disables after a period or per-USB-port; re-toggle if `unauthorized` appears repeatedly.
 
 ## Setup
 
