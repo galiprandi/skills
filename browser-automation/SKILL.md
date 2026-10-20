@@ -119,6 +119,7 @@ In all other cases, use the keyboard.
 - **Browser not found:** `npm install -g @playwright/cli@latest && playwright-cli install-browser`
 - **Stale refs:** Take a fresh `find` or `snapshot` before interacting
 - **`fill` doesn't work on custom input:** Use `eval` with native value setter (see [references/key-patterns.md](references/key-patterns.md))
+- **`fill` works but autocomplete/validation never fires:** `fill` sets the value in one shot — it does NOT emit per-keystroke `keydown`/`input` events, so live search suggestions, type-as-you-validate fields, and combobox filtering never trigger. Use `exec type <text>` (per-keystroke, like Playwright's `pressSequentially()`) instead of `fill` on search boxes, autocomplete fields, and any input with live validation. Use `fill` only for plain inputs with no dynamic behavior.
 - **Button click does nothing:** Use `eval` with mousedown→click→mouseup sequence
 - **SPA navigation stuck:** Poll DOM content with `eval`, don't check URL (Rule 5)
 - **401 from API:** Token expired — re-extract from localStorage
