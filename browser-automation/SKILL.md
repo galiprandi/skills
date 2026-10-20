@@ -222,6 +222,42 @@ node .agents/skills/browser-automation/scripts/browser.js exec find "text to sea
 node .agents/skills/browser-automation/scripts/browser.js exec press Enter
 ```
 
+**Targets accept Playwright selectors, not just refs.** Any command taking `<target>` (click, fill, type, select, hover, check, uncheck, drag) also accepts `css=`, `text=`, `#id`, or `getByRole('button', { name: 'Submit' })`. When you already know the selector, skip the snapshot→ref round-trip:
+
+```bash
+node .agents/skills/browser-automation/scripts/browser.js exec click "text=Sign in"
+node .agents/skills/browser-automation/scripts/browser.js exec fill "css=#email" "a@b.com"
+```
+
+**Scoped snapshots** (cheaper than a full snapshot on large pages):
+
+```bash
+node .agents/skills/browser-automation/scripts/browser.js exec snapshot "css=main" --depth 3
+node .agents/skills/browser-automation/scripts/browser.js exec snapshot --filename    # save to file
+node .agents/skills/browser-automation/scripts/browser.js exec find "/error|fail/i"   # regex search
+```
+
+**Native dialogs block everything.** `alert`/`confirm`/`prompt`/`beforeunload` freeze all commands until handled — if commands suddenly hang or report modal state, resolve the dialog first:
+
+```bash
+node .agents/skills/browser-automation/scripts/browser.js exec dialog-accept            # OK / accept
+node .agents/skills/browser-automation/scripts/browser.js exec dialog-accept "text"     # answer a prompt
+node .agents/skills/browser-automation/scripts/browser.js exec dialog-dismiss           # Cancel
+```
+
+**Other useful commands:**
+
+```bash
+node .agents/skills/browser-automation/scripts/browser.js exec check <target>           # checkbox/radio
+node .agents/skills/browser-automation/scripts/browser.js exec select <target> "Option" # native <select>
+node .agents/skills/browser-automation/scripts/browser.js exec upload file.pdf          # file inputs
+node .agents/skills/browser-automation/scripts/browser.js exec hover <target>           # tooltips/menus
+node .agents/skills/browser-automation/scripts/browser.js exec drag <from> <to>         # drag & drop
+node .agents/skills/browser-automation/scripts/browser.js exec console error            # console msgs ≥ level
+node .agents/skills/browser-automation/scripts/browser.js exec requests                 # network log
+node .agents/skills/browser-automation/scripts/browser.js exec response-body <n>        # inspect a response
+```
+
 **Wait for DOM to settle** (after clicks/navigation, instead of `sleep`):
 ```bash
 node .agents/skills/browser-automation/scripts/browser.js wait-dom [--quiet <ms>] [--timeout <ms>]
