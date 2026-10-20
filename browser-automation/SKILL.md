@@ -125,6 +125,8 @@ In all other cases, use the keyboard.
 - **Session killed:** Never use shell `sleep` — use in-page polling via `eval` (Rule 2)
 - **Two browser instances:** Use `--tab`, never open twice
 - **Site returns 403 on curl/HTTP but works in browser:** Sites like Reddit block non-browser User-Agents on HTTP APIs (JSON, RSS) but do NOT block the Playwright browser session in headed mode. If curl returns 403, do NOT assume the browser is also blocked. Use `goto` + `eval` in the browser. If the browser also returns 403, you are likely in headless mode — `close --force` and reopen with `--headed`. Some sites (Reddit) detect headless browsers and block them, but allow headed browsers with a real profile.
+- **Custom dropdown/combobox won't select or options invisible:** Options live in a transient portal that unmounts on blur between CLI calls. Never open and inspect in separate commands — do open+read+select in one `eval`. See [references/custom-combobox.md](references/custom-combobox.md) for the full strategy ladder.
+- **Dropdown selected the wrong option silently:** `fill` + `Enter` commits the highlighted option, not your typed text. Always verify the committed chip/readout in `innerText` after selecting.
 
 ## App guides (auto-injected when you open a site)
 
