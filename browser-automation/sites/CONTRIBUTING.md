@@ -2,6 +2,12 @@
 
 This directory contains automation guides for specific web applications. Each guide documents validated selectors, API endpoints, flows, and gotchas for automating a particular site with `playwright-cli`.
 
+## Where to send contributions
+
+The canonical repo for this skill is `galiprandi/skills` (path `browser-automation/`). Local copies embedded inside consumer repos (e.g. `project/.agents/skills/browser-automation/`) are checkouts, not the upstream — do not open PRs against them.
+
+To contribute: clone `galiprandi/skills`, create a branch from `main`, apply your changes under `browser-automation/` only, push, and open a PR to `galiprandi/skills`.
+
 ## Who this is for
 
 Both humans and AI agents. An agent reading a guide should be able to automate the site without prior knowledge. A human should be able to verify, debug, and extend the guide.
