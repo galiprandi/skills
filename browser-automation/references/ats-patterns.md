@@ -93,3 +93,12 @@ After extracting slots, filter by the user's `availability` preferences from DB 
 - The calendar shows ~6 weeks. Days outside the current month may have class `react-datepicker__day--outside-`.
 - The page may open with a specific week pre-selected (URL: `/availability/calendar/<YYYY-MM-DD>/`).
 - Do NOT book slots programmatically. Only extract and present filtered options to the user.
+
+## Validated 2026-10-22
+
+- **Invisible captcha**: reCAPTCHA v3 often passes on Submit with zero interaction. Fill all fields, click Submit, only escalate to user if it actually fails.
+- **React-controlled fields**: `eval`-set values may look filled but fail validation. Use wrapper `fill` (real keystrokes), click field first, then verify `input.value`. Comboboxes: click → `type` → click the `[role=option]` match; never set the input value directly.
+- **Heavy evals crash sessions**: long `eval` on multi-step wizard pages kills the session ("unresponsive"). Prefer short `fill`/`click` by snapshot ref.
+- **Radio groups that ignore clicks**: click the label-wrapper `generic` ref (has `cursor=pointer`), not the `input` itself.
+- **Snapshot ref prefixes vary** (`e*`/`f*` per session) — match the whole `ref=` value, never hardcode a prefix.
+- **Modal detection**: `dialog[open]` first, then `[role=dialog]`, then heading text ("Apply to X"). If a click "didn't open", the selector is wrong, not the click.
