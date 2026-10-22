@@ -2,6 +2,10 @@
 name: strider
 description: Automate Strider (onstrider.com) LATAM job platform: profile updates, work experience, and multi-step job applications.
 verified: 2026-09-02
+domains:
+  - onstrider.com
+  - app.onstrider.com
+  - www.onstrider.com
 ---
 
 # Strider (onstrider.com) — Automation Guide

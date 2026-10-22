@@ -2,6 +2,9 @@
 name: property-directory
 description: Scrape property rental directories for owner contacts, addresses, and WhatsApp links.
 verified: 2026-09-02
+domains:
+  - alquileresnuevaatlantis.com.ar
+  - www.alquileresnuevaatlantis.com.ar
 ---
 
 # Property Directory Scraping Guide

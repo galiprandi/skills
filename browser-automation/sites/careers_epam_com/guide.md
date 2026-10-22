@@ -2,6 +2,8 @@
 name: careers-epam-com
 description: EPAM Careers application wizard automation (7-step modal, CV prefill, portal comboboxes, consent trap).
 verified: 2026-10-20
+domains:
+  - careers.epam.com
 ---
 
 # EPAM Careers (careers.epam.com)

@@ -2,6 +2,9 @@
 name: afip-gov-ar
 description: Automate AFIP/ARCA (Argentina tax authority) portal and SiRADIG F572 Web form for annual income tax deductions. Use when navigating AFIP/ARCA, loading SiRADIG, managing tax deductions, family charges, rent deductions, or any ARCA clave fiscal workflow.
 verified: 2026-09-02
+domains:
+  - afip.gob.ar
+  - www.afip.gob.ar
 ---
 
 # AFIP / ARCA — Automation guide

@@ -2,6 +2,12 @@
 name: discord
 description: Automate Discord Web for messaging, navigation, and voice.
 verified: 2026-09-02
+domains:
+  - discord.com
+  - www.discord.com
+  - discordapp.com
+  - ptb.discord.com
+  - canary.discord.com
 ---
 
 # Discord Web Automation Guide

@@ -2,6 +2,9 @@
 name: web3forms
 description: Automate Web3Forms dashboard with playwright-cli. Covers keyboard navigation of form settings, submissions, spam protection, and integrations. Use when managing Web3Forms forms, checking submissions, or configuring spam protection. Part of the browser-automation skill.
 verified: 2026-09-08
+domains:
+  - app.web3forms.com
+  - web3forms.com
 ---
 
 # Web3Forms Dashboard Automation

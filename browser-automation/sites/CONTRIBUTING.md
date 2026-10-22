@@ -114,6 +114,28 @@ Derive the directory name from the site's canonical domain:
 - Strip `www.` prefix
 - Example: `mail.google.com` → `gmail_com`, `www.linkedin.com` → `linkedin_com`, `humand.co` → `humand_co`
 
+### `domains:` frontmatter (required)
+
+Every `guide.md` must declare the hostnames it covers in a `domains:` frontmatter list. The wrapper resolves guides by matching the visited hostname against these entries — this replaces hardcoded alias maps.
+
+```yaml
+---
+name: gmail
+description: ...
+domains:
+  - mail.google.com
+  - gmail.com
+  - inbox.google.com
+verified: YYYY-MM-DD
+---
+```
+
+Rules:
+- List the **canonical hostname** plus every known alias/subdomain that serves the app
+- Subdomains of a declared entry match automatically (`app.linkedin.com` matches `linkedin.com`) — no need to list `www.`
+- ccTLD variants are separate domains and must be listed explicitly (`computrabajo.com.ar` ≠ `computrabajo.com`)
+- Guides without `domains:` still resolve via directory-name fallback, but only when the hostname slug matches exactly — declare domains for reliability
+
 ### Learnings vs guides
 
 - **`guide.md`** is the curated, validated guide for the app. It documents selectors, API endpoints, flows, and gotchas that have been tested against the live site.
@@ -128,7 +150,7 @@ Derive the directory name from the site's canonical domain:
 
 Each app guide must include:
 
-1. **Frontmatter** — `name` and `description` for skill discovery
+1. **Frontmatter** — `name`, `description`, and `domains:` (all hostnames the app serves) for skill discovery and resolution
 2. **Prerequisite** — link to parent `SKILL.md` for golden rules and wrapper
 3. **Setup** — how to open the site, handle login, save state
 4. **Keyboard shortcuts** — **Mandatory.** Every site that has keyboard shortcuts must document them in full. Before writing a guide for a site, investigate whether it has shortcuts: check the app's help/FAQ, search "keyboard shortcuts <app name>", or try common patterns (`?`, `Ctrl+/`, `Shift+?`, `F1`). If the site has shortcuts, document the complete list in a dedicated section with tables grouped by category. Only document shortcuts that have been validated against the live site — do not include shortcuts from documentation that were not tested. Mark shortcuts that require enabling a setting (e.g. LinkedIn's hotkey toggle, Facebook's single-character switch) clearly.

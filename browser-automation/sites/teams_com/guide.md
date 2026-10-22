@@ -2,6 +2,9 @@
 name: teams
 description: Send and delete messages in Microsoft Teams web via keyboard automation. Markdown supported.
 verified: 2026-09-03
+domains:
+  - teams.microsoft.com
+  - teams.live.com
 ---
 
 # Microsoft Teams Web Automation

@@ -3,6 +3,10 @@ name: docs-google
 description: Automate Google Docs and Google Sheets (docs.google.com) with playwright-cli. Covers keyboard shortcuts for Sheets (cell selection, formatting, navigation, menus, rows/columns), Docs editing basics, and the tool finder. Use when editing spreadsheets or documents, filling cells, formatting, or extracting data from Google Editors. Part of the browser-automation skill.
 verified: 2026-09-26
 source: https://support.google.com/docs/answer/181110
+domains:
+  - docs.google.com
+  - sheets.google.com
+  - slides.google.com
 ---
 
 # Google Docs / Sheets Automation

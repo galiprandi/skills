@@ -1,6 +1,9 @@
 ---
 name: buk
 description: Buk HR/recruiting ATS application forms (buk.co). Fill + submit candidate applications.
+domains:
+  - buk.co
+  - app.buk.co
 ---
 
 # Buk ATS — validated 2026-10-22

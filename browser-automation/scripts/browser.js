@@ -407,15 +407,6 @@ function printUpdateMessage(behind) {
 
 // --- site guide injection ---
 
-// Alias map: hostname → guide slug (for cases where the slug doesn't match the hostname)
-const DOMAIN_ALIASES = {
-  'mail.google.com': 'gmail_com',
-  'web.whatsapp.com': 'whatsapp_com',
-  'whatsapp.com': 'whatsapp_com',
-  'web.telegram.org': 'telegram_org',
-  'sheets.google.com': 'docs_google_com',
-};
-
 // Path-based guide overrides: hostname/path → specific guide file (not guide.md)
 const PATH_GUIDES = {
   'www.google.com/maps': 'google_com/maps-guide.md',
@@ -423,12 +414,77 @@ const PATH_GUIDES = {
   'maps.google.com': 'google_com/maps-guide.md',
 };
 
+// Hostnames that never get a "public site, contribute" hint
+const PRIVATE_HOST_RE = /^(\d+\.\d+\.\d+\.\d+|localhost|[^.]+)$|\.(local|lan|internal|intranet|corp|home|private|test|invalid|localhost)$/i;
+
+/**
+ * Parse the `domains:` list from a markdown file's YAML frontmatter.
+ * Supports block lists (`domains:\n  - a.com`) and inline (`domains: [a.com, b.com]`).
+ * Returns a lowercased array, empty when absent or unreadable.
+ */
+function parseFrontmatterDomains(filePath) {
+  let head;
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    const buf = Buffer.alloc(8192);
+    const n = fs.readSync(fd, buf, 0, 8192, 0);
+    fs.closeSync(fd);
+    head = buf.toString('utf8', 0, n);
+  } catch {
+    return [];
+  }
+  const fm = head.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!fm) return [];
+  const body = fm[1];
+  const dm = body.match(/^domains:[ \t]*(.*)$/m);
+  if (!dm) return [];
+  const inline = dm[1].trim();
+  const out = [];
+  const clean = (s) => s.trim().replace(/^['"]|['"]$/g, '').toLowerCase();
+  if (inline.startsWith('[')) {
+    for (const s of inline.replace(/^\[/, '').replace(/\].*$/, '').split(',')) {
+      const v = clean(s);
+      if (v) out.push(v);
+    }
+    return out;
+  }
+  for (const line of body.slice(body.indexOf(dm[0]) + dm[0].length).split(/\r?\n/)) {
+    if (line.trim() === '') continue;
+    const lm = line.match(/^\s*-\s*(\S+)\s*$/);
+    if (!lm) break;
+    out.push(clean(lm[1]));
+  }
+  return out;
+}
+
+/**
+ * Index of declared hostname → guide file, built from `domains:` frontmatter
+ * across sites/*//*.md. First declaration wins on collision.
+ */
+function buildDomainIndex() {
+  const idx = new Map();
+  try {
+    for (const dir of fs.readdirSync(SITES_DIR, { withFileTypes: true })) {
+      if (!dir.isDirectory() || dir.name.startsWith('.')) continue;
+      const dirPath = path.join(SITES_DIR, dir.name);
+      for (const f of fs.readdirSync(dirPath)) {
+        if (!f.endsWith('.md')) continue;
+        const fp = path.join(dirPath, f);
+        for (const d of parseFrontmatterDomains(fp)) {
+          if (!idx.has(d)) idx.set(d, fp);
+        }
+      }
+    }
+  } catch { /* sites dir missing → empty index */ }
+  return idx;
+}
+
 /**
  * Find the guide file for a given URL.
  * Resolution order:
  *   1. PATH_GUIDES override (hostname + path prefix)
- *   2. DOMAIN_ALIASES → slug/guide.md
- *   3. Progressive subdomain stripping → slug/guide.md
+ *   2. Declared `domains:` in guide frontmatter — progressive suffix match
+ *   3. Progressive subdomain stripping → slug/guide.md (fallback)
  * Returns the absolute path to the guide file, or null if not found.
  */
 function findSiteGuide(url) {
@@ -438,7 +494,8 @@ function findSiteGuide(url) {
   } catch {
     return null;
   }
-  const hostname = parsed.hostname.toLowerCase();
+  const hostname = parsed.hostname.toLowerCase().replace(/\.$/, '');
+  if (!hostname) return null;
   const pathPrefix = parsed.pathname.split('/').filter(Boolean)[0] || '';
 
   // 1. Path-based overrides
@@ -452,15 +509,16 @@ function findSiteGuide(url) {
     if (fs.existsSync(guidePath)) return guidePath;
   }
 
-  // 2. Alias map
-  if (DOMAIN_ALIASES[hostname]) {
-    const slug = DOMAIN_ALIASES[hostname];
-    const guidePath = path.join(SITES_DIR, slug, 'guide.md');
-    if (fs.existsSync(guidePath)) return guidePath;
+  const parts = hostname.split('.');
+
+  // 2. Declared domains (frontmatter) — most specific suffix wins
+  const idx = buildDomainIndex();
+  for (let i = 0; i < parts.length - 1; i++) {
+    const guidePath = idx.get(parts.slice(i).join('.'));
+    if (guidePath) return guidePath;
   }
 
   // 3. Progressive subdomain stripping — exact guide.md match only
-  const parts = hostname.split('.');
   for (let i = 0; i < parts.length - 1; i++) {
     const slug = parts.slice(i).join('_');
     const guidePath = path.join(SITES_DIR, slug, 'guide.md');
@@ -487,6 +545,10 @@ function injectSiteGuide(url) {
     console.log('\n' + '─'.repeat(60));
     console.log(`[browser] NO SITE GUIDE for ${hostname} — learn and contribute one`);
     console.log('─'.repeat(60));
+    if (!PRIVATE_HOST_RE.test(hostname)) {
+      console.log(`[browser] This looks like a public site — after automating it, consider contributing a guide:`);
+      console.log(`[browser]   read sites/CONTRIBUTING.md  ·  run 'contribute'`);
+    }
     try {
       const learnContent = fs.readFileSync(learnPath, 'utf8');
       console.log(learnContent);
@@ -825,7 +887,7 @@ async function main() {
 
   // Commands that don't need playwright-cli installed. 'exec' and 'wait-dom'
   // defer the check: their fast path (session socket) doesn't spawn the CLI.
-  const standaloneCommands = new Set(['contribute', 'guides', 'status', 'help']);
+  const standaloneCommands = new Set(['contribute', 'guides', 'guide-for', 'status', 'help']);
   const deferredCheckCommands = new Set(['exec', 'wait-dom', 'wait-for', 'observe', 'batch']);
   if (!standaloneCommands.has(command) && !deferredCheckCommands.has(command)) {
     checkPlaywrightCli();
@@ -1173,10 +1235,26 @@ async function main() {
         for (const site of sites) {
           const guideStatus = site.hasGuide ? 'guide.md' : `${site.files} file(s), no guide.md`;
           console.log(`  ${site.slug.padEnd(30)} ${guideStatus}`);
+          if (site.hasGuide) {
+            const domains = parseFrontmatterDomains(path.join(SITES_DIR, site.slug, 'guide.md'));
+            if (domains.length) console.log(`  ${' '.repeat(30)} domains: ${domains.join(', ')}`);
+          }
         }
         console.log(`\n[browser] ${sites.length} site(s) documented. ${sites.filter((s) => s.hasGuide).length} with guide.md.`);
       } catch (e) {
         fail(`Failed to list guides: ${e.message}`);
+      }
+      return;
+    }
+
+    case 'guide-for': {
+      const url = positionals[0];
+      if (!url) fail('guide-for requires a URL: node browser.js guide-for <url>');
+      const guidePath = findSiteGuide(url);
+      if (guidePath) {
+        console.log(path.relative(REPO_ROOT, guidePath));
+      } else {
+        console.log('none');
       }
       return;
     }

@@ -2,6 +2,8 @@
 name: cloudflare-dash
 description: Automate Cloudflare dashboard with playwright-cli. Covers Quick Search (Cmd+K), ARIA tablist keyboard navigation, Email Routing, DNS management, and account switching. Use when managing Cloudflare zones, DNS records, email routing rules, or dashboard settings. Part of the browser-automation skill.
 verified: 2026-09-08
+domains:
+  - dash.cloudflare.com
 ---
 
 # Cloudflare Dashboard Automation

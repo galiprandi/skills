@@ -2,6 +2,8 @@
 name: google_maps
 description: Automate Google Maps for distance verification, business search, and phone number extraction.
 verified: 2026-09-02
+domains:
+  - maps.google.com
 ---
 
 # Google Maps Automation Guide

@@ -2,6 +2,11 @@
 name: facebook
 description: Automate Facebook groups for post scraping, member directory extraction, and content monitoring.
 verified: 2026-09-02
+domains:
+  - facebook.com
+  - www.facebook.com
+  - m.facebook.com
+  - web.facebook.com
 ---
 
 # Facebook Groups Automation Guide

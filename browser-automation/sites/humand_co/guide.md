@@ -2,6 +2,9 @@
 name: humand
 description: Automate job applications on Humand.co-based career sites via guest session API.
 verified: 2026-09-02
+domains:
+  - humand.co
+  - app.humand.co
 ---
 
 # Humand.co Automation

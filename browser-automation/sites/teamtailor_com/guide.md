@@ -2,6 +2,8 @@
 name: teamtailor
 description: Automate job applications on Teamtailor-based career sites via browser UI or HTTP API.
 verified: 2026-09-02
+domains:
+  - teamtailor.com
 ---
 
 # Teamtailor Automation

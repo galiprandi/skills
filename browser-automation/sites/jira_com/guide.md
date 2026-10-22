@@ -2,6 +2,9 @@
 name: jira
 description: Automate Jira via browser UI for issue creation, form filling, navigation, and transitions.
 verified: 2026-09-02
+domains:
+  - jira.com
+  - atlassian.net
 ---
 
 # Jira Automation

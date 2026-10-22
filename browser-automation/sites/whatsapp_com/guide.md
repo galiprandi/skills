@@ -2,6 +2,10 @@
 name: whatsapp
 description: Automate WhatsApp Web for messaging, conversation monitoring, and bulk scanning.
 verified: 2026-09-02
+domains:
+  - web.whatsapp.com
+  - whatsapp.com
+  - www.whatsapp.com
 ---
 
 # WhatsApp Web Automation Guide
