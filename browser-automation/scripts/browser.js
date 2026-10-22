@@ -414,8 +414,10 @@ const PATH_GUIDES = {
   'maps.google.com': 'google_com/maps-guide.md',
 };
 
-// Hostnames that never get a "public site, contribute" hint
-const PRIVATE_HOST_RE = /^(\d+\.\d+\.\d+\.\d+|localhost|[^.]+)$|\.(local|lan|internal|intranet|corp|home|private|test|invalid|localhost)$/i;
+// Hostnames that never get a contribution hint (loopback, single-label, IPs).
+// Everything else — including intranets and corporate domains — gets the hint:
+// learnings are local-only for private sites but still valuable to anyone with access.
+const PRIVATE_HOST_RE = /^(\d+\.\d+\.\d+\.\d+|localhost|[^.]+)$/i;
 
 /**
  * Parse the `domains:` list from a markdown file's YAML frontmatter.
@@ -546,8 +548,10 @@ function injectSiteGuide(url) {
     console.log(`[browser] NO SITE GUIDE for ${hostname} — learn and contribute one`);
     console.log('─'.repeat(60));
     if (!PRIVATE_HOST_RE.test(hostname)) {
-      console.log(`[browser] This looks like a public site — after automating it, consider contributing a guide:`);
-      console.log(`[browser]   read sites/CONTRIBUTING.md  ·  run 'contribute'`);
+      console.log(`[browser] If you discover anything that reduces friction (shortcut, stable selector, API path,` +
+        ` workaround for a dead end), contribute it — routine success is NOT contributable:`);
+      console.log(`[browser]   1. update the skill: npx skills update browser-automation`);
+      console.log(`[browser]   2. read sites/CONTRIBUTING.md, then run 'contribute'`);
     }
     try {
       const learnContent = fs.readFileSync(learnPath, 'utf8');
