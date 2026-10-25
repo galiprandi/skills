@@ -9,7 +9,7 @@ Requirements to run this skill on a new machine.
 - **agent-browser** (Vercel CLI) — optional: the wrapper falls back to `npx -y agent-browser` automatically. Global install only saves the per-call npx lookup:
 
 ```bash
-npm install -g agent-browser (optional; npx fallback is automatic)
+npm install -g agent-browser
 agent-browser --version   # verify (or let the wrapper use npx)
 ```
 

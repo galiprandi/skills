@@ -109,7 +109,7 @@ In all other cases, use the keyboard.
 ## Prerequisites
 
 - Node.js 18+ and npm
-- agent-browser: `npm install -g agent-browser (optional; npx fallback is automatic)` (system Chrome required)
+- agent-browser: `npm install -g agent-browser` (system Chrome required)
 - A persistent profile directory (gitignored) for auth state
 - Manual login for each new site (agent opens headed mode, user logs in once)
 
@@ -127,7 +127,7 @@ In all other cases, use the keyboard.
 
 ## Troubleshooting
 
-- **Browser not found:** `npm install -g agent-browser (optional; npx fallback is automatic)` + system Chrome installed (google-chrome)
+- **Browser not found:** `npm install -g agent-browser` + system Chrome installed (google-chrome)
 - **Stale refs:** Take a fresh `find` or `snapshot` before interacting
 - **`fill` doesn't work on custom input:** Use `eval` with native value setter (see [references/key-patterns.md](references/key-patterns.md))
 - **Button click does nothing:** Use `eval` with mousedown→click→mouseup sequence
@@ -177,7 +177,7 @@ If a site has a guide, you will see it. If you don't see a guide, the site is no
 ### Install
 
 ```bash
-npm install -g agent-browser (optional; npx fallback is automatic)
+npm install -g agent-browser
 # Requires system Chrome (google-chrome or chromium) installed
 ```
 

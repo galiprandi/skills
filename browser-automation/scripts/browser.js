@@ -102,7 +102,7 @@ function ab(args, { input } = {}) {
     stdio: ['pipe', 'pipe', 'pipe'],
     input,
   });
-  if (r.error) fail(`agent-browser spawn failed: ${r.error.message}\nInstall: npm install -g agent-browser (optional; npx fallback is automatic)`);
+  if (r.error) fail(`agent-browser spawn failed: ${r.error.message}\nInstall: npm install -g agent-browser`);
   if (r.stderr) process.stderr.write(r.stderr);
   if (r.stdout) process.stdout.write(r.stdout);
   return r.status === 0;
