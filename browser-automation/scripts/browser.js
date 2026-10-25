@@ -46,6 +46,22 @@ const UPDATE_CACHE_PATH = path.join(os.homedir(), '.browser-automation', 'update
 const DEBUG = process.env.BROWSER_DEBUG === '1';
 const UPDATE_CHECK_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // weekly
 
+// Binary resolution: AGENT_BROWSER_BIN > repo-local node_modules > global PATH > npx.
+// Global install (npm i -g agent-browser) is optional — it only saves the npx
+// lookup per call; the npm package ships the same prebuilt Rust binary.
+let _abBin = null;
+function abBin() {
+  if (_abBin) return _abBin;
+  if (process.env.AGENT_BROWSER_BIN) return (_abBin = [process.env.AGENT_BROWSER_BIN]);
+  const local = path.join(REPO_ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'agent-browser.cmd' : 'agent-browser');
+  if (fs.existsSync(local)) return (_abBin = [local]);
+  const probe = spawnSync('agent-browser', ['--version'], { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'pipe'] });
+  if (!probe.error) return (_abBin = ['agent-browser']);
+  _abBin = process.platform === 'win32' ? ['cmd.exe', '/d', '/s', '/c', 'npx', '-y', 'agent-browser']
+                                      : ['npx', '-y', 'agent-browser'];
+  return _abBin;
+}
+
 // Tracker/ad origins blocked on every `open` (migrated from playwright cli.config.json).
 const BLOCKED_ORIGINS = [
   'doubleclick.net', 'google-analytics.com', 'googletagmanager.com',
@@ -80,12 +96,13 @@ function env() {
 
 function ab(args, { input } = {}) {
   debug(`ab ${args.join(' ')}`);
-  const r = spawnSync('agent-browser', args, {
+  const [bin, ...binArgs] = abBin();
+  const r = spawnSync(bin, [...binArgs, ...args], {
     env: env(), encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
     input,
   });
-  if (r.error) fail(`agent-browser spawn failed: ${r.error.message}\nInstall: npm install -g agent-browser`);
+  if (r.error) fail(`agent-browser spawn failed: ${r.error.message}\nInstall: npm install -g agent-browser (optional; npx fallback is automatic)`);
   if (r.stderr) process.stderr.write(r.stderr);
   if (r.stdout) process.stdout.write(r.stdout);
   return r.status === 0;

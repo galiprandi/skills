@@ -6,11 +6,11 @@ Requirements to run this skill on a new machine.
 
 - **Node.js** 18+
 - **System Google Chrome** (`google-chrome`, `chromium`, or `chromium-browser`). Required: agent-browser's bundled Chromium fails UA-gates on hostile sites (WhatsApp, Google sign-in).
-- **agent-browser** (Vercel CLI):
+- **agent-browser** (Vercel CLI) — optional: the wrapper falls back to `npx -y agent-browser` automatically. Global install only saves the per-call npx lookup:
 
 ```bash
-npm install -g agent-browser
-agent-browser --version   # verify
+npm install -g agent-browser (optional; npx fallback is automatic)
+agent-browser --version   # verify (or let the wrapper use npx)
 ```
 
 Without a global install, `npx agent-browser <cmd>` works too.
