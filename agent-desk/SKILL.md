@@ -322,6 +322,27 @@ node scripts/browser.js exec eval "window.dispatchEvent(new CustomEvent('agent-d
 node scripts/browser.js exec eval "window.dispatchEvent(new CustomEvent('agent-desk:import-backup'))"
 ```
 
+### File backup & agent migration (agent/ folder contract)
+
+The CustomEvents above download a file into the browser's downloads dir. For
+the repo-portable backup (`agent/desk-backup.json`) use the export API
+directly and redirect stdout — this is what `session.end` backups and
+agent-to-agent migration rely on:
+
+```bash
+# Backup: write the full snapshot to the agent/ folder
+node .agents/skills/browser-automation/scripts/browser.js exec eval "agentAPI.export.toJSON()" > agent/desk-backup.json
+
+# Restore on a new agent instance (after copying the agent/ folder):
+# the snapshot file is a JSON object literal — inline it into the eval
+node .agents/skills/browser-automation/scripts/browser.js exec eval "agentAPI.export.import($(cat agent/desk-backup.json))"
+```
+
+`export.import()` is async (the only async agentAPI method) and validates
+`version` + `app` before wiping — an incompatible or foreign snapshot is
+rejected without touching existing data. The snapshot covers all stores:
+tasks, events, sessions, links, config.
+
 ### Reading the shortcuts list from the DOM
 
 The shortcuts view at `/shortcuts` renders the full list with `data-testid` attributes for each row:
