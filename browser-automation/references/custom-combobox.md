@@ -1,6 +1,6 @@
 # Custom Comboboxes & Portal Dropdowns
 
-Resilient strategy for dropdown widgets that are neither native `<select>` nor standard ARIA comboboxes — the kind used by modern ATS and enterprise forms (EPAM careers, Oracle CX, etc.).
+Resilient strategy for dropdown widgets that are neither native `<select>` nor standard ARIA comboboxes — the kind used by modern ATS and enterprise forms (EPAM careers, Oracle CX, etc.). Commands below run via `node .agents/skills/browser-automation/scripts/browser.js exec <cmd>` (agent-browser; validated patterns unverified after migration).
 
 ## Why these widgets defeat naive automation
 
@@ -48,9 +48,9 @@ Key points:
 When typing filters the option list (EPAM Country/City combos work this way):
 
 ```bash
-click <combo-ref>          # open
-fill <combo-ref> "Argent"  # filter — use partial, unambiguous text
-press Enter                # commits the highlighted match
+exec click @eN             # open (ref from snapshot -i)
+exec fill @eN "Argent"     # filter — use partial, unambiguous text
+exec press Enter           # commits the highlighted match
 ```
 
 Then **immediately** read back the rendered chip/value:
