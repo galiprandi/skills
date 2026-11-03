@@ -130,9 +130,9 @@ function ensureConfig() {
 
 // Path-based guide overrides: hostname/path → specific guide file (not guide.md).
 const PATH_GUIDES = {
-  'www.google.com/maps': 'google_com/maps-guide.md',
-  'google.com/maps': 'google_com/maps-guide.md',
-  'maps.google.com': 'google_com/maps-guide.md',
+  'www.google.com/maps': 'google_maps_com/guide.md',
+  'google.com/maps': 'google_maps_com/guide.md',
+  'maps.google.com': 'google_maps_com/guide.md',
   'calendar.google.com': 'calendar_google_com/calendar-deeplink.md',
 };
 
@@ -413,6 +413,12 @@ switch (cmd) {
         .map((d) => d.name);
       console.log(dirs.join('\n'));
     } catch { console.log('(no guides found)'); }
+    break;
+  }
+
+  case 'guide-for': {
+    const guide = findGuide(rest[0]);
+    console.log(guide ? path.relative(REPO_ROOT, guide) : 'none');
     break;
   }
 

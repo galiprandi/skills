@@ -148,3 +148,6 @@ vite.config.ts.timestamp-*
 .playwright-cli/
 *.auth-state.json
 *.session-state.json
+
+# agent-browser repo config (auto-generated per consuming repo)
+agent-browser.json
