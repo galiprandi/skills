@@ -65,10 +65,13 @@ Then `adb connect <ip>:<port>` and verify with `adb devices -l` + `adb shell get
 
 **Resilience checklist — keep trying before asking the user:**
 - `connect` refused → port rotated → re-run mDNS discovery (the port changes when Wireless debugging is toggled or the network changes)
-- mDNS finds nothing → confirm both devices are on the same LAN; check router for AP isolation
-- pairing expired → codes are single-use; ask the user to open the pairing dialog again for a fresh code
+- mDNS finds nothing → confirm both devices are on the same LAN; check router for AP isolation. `adb mdns services` can return empty even when the service is up (observed on Linux distro-packaged adb builds) — use `scripts/adb-connect.sh` (bundled, avahi-based, device-agnostic) or `avahi-browse -rt _adb-tls-connect._tcp` on Linux, `dns-sd` on macOS, to resolve name, IP, **port**. Last resort: ask the user for the "IP address & port" on the main Wireless debugging screen, or port-scan the phone's IP in the 30000-50000 range (adb TLS port is ephemeral)
+- `connect` fails on an open port → the PC was never paired (or keys were wiped) → `adb pair` is mandatory, `connect` alone will never work
+- pairing expired → codes are single-use and die in seconds; ask the user to reopen the pairing dialog for a fresh code
+- **The pairing UI must stay open while pairing — closing it kills the code AND the port instantly.** This is stock Android 11+ behavior (AOSP Settings), identical on Samsung, Pixel, Xiaomi and every OEM: the "Pair device with pairing code" UI is a bottom sheet/dialog that closes if the user taps outside, presses Back, switches apps, or it times out (~30-60s), and both credentials die immediately. It is the #1 cause of failed `adb pair`. Instruct the user explicitly BEFORE they open it: "generá el código, mandamelo junto con el IP:puerto en un solo mensaje, y no cierres la hoja hasta que te confirme". Run `adb pair <ip>:<port>` the moment the message arrives — do not batch other commands first. Tip for the user: Android closes the sheet when leaving Developer options, so if they need another app open to read the code, suggest split-screen or typing it from memory
+- The pairing port and the connect port are DIFFERENT. The connect IP:port lives on the main Wireless debugging screen and stays fixed while the toggle is on; the pairing IP:port only exists while the bottom sheet is open
+- Pairing is one-time per PC: keys persist in `~/.android/adbkey.pub` and survive reboots of both devices. After a phone reboot only `adb connect` is needed (discover the port via mDNS or reuse the last one)
 - Wired path always available as fallback: `adb tcpip 5555` + `adb connect <ip>:5555` over USB (needs USB once per boot)
-- The pairing code dialog stays open while pairing — keep the user on that screen until `adb pair` returns
 
 **After connecting, always close out the session:** send `adb shell input keyevent KEYCODE_HOME` so the phone returns to the launcher (leaving it mid-Settings is confusing), then tell the user the connection is ready and which device/model responded.
 
