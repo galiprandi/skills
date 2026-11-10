@@ -169,6 +169,21 @@ Example:
 Use `innerHTML` + `beforeinput` with `insertFromPaste` instead.
 ```
 
+## Messaging sites: writing-rule footer
+
+Guides for sites where the agent composes and sends messages on behalf of the
+user (chat apps, webmail, team messaging, social DMs) get an extra footer
+injected automatically when their guide is printed: a reminder to verify the
+user's writing preferences before drafting or sending anything.
+
+The list of site slugs lives in `MESSAGING_SITES` in
+`../scripts/browser.js`. **If your guide is for a messaging site, add its
+slug (the directory name under `sites/`) to that array.** If the site is not
+a messaging surface, do nothing: the footer only appears for registered slugs.
+
+Current entries: `whatsapp_com`, `gmail_com`, `outlook_office_com`,
+`teams_com`, `linkedin_com`, `discord_com`.
+
 ## Review checklist before committing
 
 - [ ] No personal data (names, emails, tokens, real URLs with IDs)
