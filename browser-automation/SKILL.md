@@ -404,6 +404,30 @@ When an app's internal API is undocumented, capture network requests to discover
 
 See [references/api-capture.md](references/api-capture.md) for the capture script and usage patterns.
 
+## Remote credential entry (user logs in from their phone)
+
+When the user is not at the machine, `credential-request.js` opens the site in
+the repo browser and exposes a minimal live viewer (viewport + click/type) via an
+ephemeral Cloudflare tunnel. The agent never sees the password — keystrokes go
+from the user's device straight into the remote page.
+
+```bash
+node .agents/skills/browser-automation/scripts/credential-request.js <url> [--ttl <sec>] [--keep-tabs]
+```
+
+- Prints a `https://*.trycloudflare.com/?k=<token>` link — send it to the user
+  (Telegram). Default TTL 300s; tunnel+viewer die automatically, browser stays
+  open with the session. Ctrl+C ends early.
+- Opens the URL in a new tab and closes the other tabs (the stream shows the
+  active tab). `--keep-tabs` to preserve them.
+- Requires `cloudflared` on PATH and Node ≥22. Ports are random per run.
+- The stream WS only accepts localhost origins, so the viewer page is served by
+  the script's own server which bridges to `ws://127.0.0.1:<streamport>`.
+- Gotcha: never run `agent-browser open` while a browser is already running —
+  it relaunches and wipes all tabs (the script uses `tab new` for this reason).
+- Headless browsers stream fine; only escalate to headed if the site blocks
+  headless or the user also needs the local window.
+
 ## Anti-patterns
 
 - **Don't** use snapshot + find + click when a keyboard shortcut exists — use `exec press` instead
