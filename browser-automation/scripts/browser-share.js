@@ -1,24 +1,31 @@
 #!/usr/bin/env node
 /**
- * credential-request.js — Temporary remote access to the repo browser so the
- * user can type credentials (or solve a login) from their phone/another device.
+ * browser-share.js — Temporary remote view of (and control over) this repo's
+ * browser, so the user can watch or interact from their phone/another device:
+ * credential entry, "show me what you're doing", remote login, etc.
  *
  * What it does:
- *   1. Opens <url> in a new headed tab and closes the other tabs (unless
- *      --keep-tabs), so the remote viewer shows only the target site.
+ *   1. Default: closes this repo's browser instance and relaunches it fresh
+ *      with a single tab on <url> — total isolation, only that view exposed.
+ *      Other repos/agents have their own browser and are unaffected; session
+ *      cookies persist in .browser-profile across the restart.
+ *      --attach: skips the restart and shares the running session as-is; the
+ *      viewer gets a tab bar to switch between all open tabs.
  *   2. Enables the agent-browser stream on a random localhost port.
- *   3. Starts a tiny HTTP+WebSocket server (random port) serving a minimal
- *      mobile-friendly viewer that proxies the stream (the stream only accepts
- *      localhost browser origins, so the page cannot connect to it directly).
- *   4. Exposes it through a cloudflared quick tunnel (ephemeral trycloudflare
- *      URL) and prints the link — send it to the user (e.g. via Telegram).
- *   5. After --ttl seconds (default 300) everything is torn down: tunnel killed,
- *      server stopped. The browser stays open with the logged-in session.
+ *   3. Starts a tiny HTTP+WebSocket server (random port) serving viewer.html,
+ *      which bridges to the stream (the stream only accepts localhost browser
+ *      origins, so the page cannot connect to it directly).
+ *   4. Exposes it via an ephemeral cloudflared quick tunnel (PATH or npx
+ *      fallback) — or directly on the LAN with --lan. Prints the link.
+ *   5. TTL: default 300s, clamped to 300s max; --ttl 0 = infinite (explicit
+ *      opt-in only). Teardown kills tunnel+viewer; the browser stays open.
  *
  * Usage (from the repo root):
- *   node .agents/skills/browser-automation/scripts/credential-request.js <url> [--ttl <sec>] [--keep-tabs] [--viewport <WxH>]
+ *   node .agents/skills/browser-automation/scripts/browser-share.js <url> [--ttl <sec>] [--viewport <WxH>] [--headed] [--lan]
+ *   node .agents/skills/browser-automation/scripts/browser-share.js --attach [--ttl <sec>] [--lan]
  *
- * Requires: agent-browser (global), cloudflared on PATH, Node >= 22 (global WebSocket).
+ * Requires: agent-browser, Node >= 22 (global WebSocket). cloudflared optional
+ * (PATH or npx); --lan needs neither.
  *
  * Env:
  *   BROWSER_DEBUG=1   Verbose logging to stderr.
@@ -39,8 +46,8 @@ const CONFIG_PATH = path.join(REPO_ROOT, 'agent-browser.json');
 const DEBUG = process.env.BROWSER_DEBUG === '1';
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
-function debug(msg) { if (DEBUG) console.error(`[cred-req:debug] ${msg}`); }
-function fail(msg) { console.error(`[cred-req] ${msg}`); cleanup(1); }
+function debug(msg) { if (DEBUG) console.error(`[browser-share:debug] ${msg}`); }
+function fail(msg) { console.error(`[browser-share] ${msg}`); cleanup(1); }
 
 // --- agent-browser env (mirrors browser.js) ---
 
@@ -73,8 +80,8 @@ function abBin() {
 function ab(args) {
   const [bin, ...binArgs] = abBin();
   const r = spawnSync(bin, [...binArgs, ...args], { env: env(), encoding: 'utf8', timeout: 30000 });
-  if (r.error) fail(`agent-browser spawn failed: ${r.error.message}`);
-  debug(`ab ${args.join(' ')} -> ${r.status}`);
+  if (r.error) throw new Error(`agent-browser spawn failed: ${r.error.message}`);
+  debug(`ab ${args.join(' ')} -> ${r.status}${r.stderr ? ' stderr:' + r.stderr.trim().slice(0, 300) : ''}`);
   return { ok: r.status === 0, stdout: r.stdout || '', stderr: r.stderr || '' };
 }
 
@@ -83,25 +90,62 @@ function abJson(args) {
   try { return JSON.parse(r.stdout); } catch { return null; }
 }
 
+// Non-fatal variant — returns exit status, never calls fail().
+function abSoft(args) {
+  const [bin, ...binArgs] = abBin();
+  const r = spawnSync(bin, [...binArgs, ...args], { env: env(), encoding: 'utf8', timeout: 15000 });
+  return r.status;
+}
+
+// Cross-platform sync sleep (no shell-out).
+function sleepSync(ms) {
+  const b = new Int32Array(new SharedArrayBuffer(4));
+  Atomics.wait(b, 0, 0, ms);
+}
+
 // --- args ---
 
+const NODE_MAJOR = parseInt(process.versions.node, 10);
+if (NODE_MAJOR < 22) {
+  console.error(`[browser-share] requires Node >= 22 (uses global WebSocket); found ${process.versions.node}`);
+  process.exit(1);
+}
+
 const args = process.argv.slice(2);
-const url = args.find((a) => !a.startsWith('--'));
+const ATTACH = args.includes('--attach');   // share the running session, all tabs switchable
+const HEADED = args.includes('--headed');   // force headed on fresh launch
+const LAN = args.includes('--lan');         // expose on LAN instead of cloudflared tunnel
+// Positional args = non-flag tokens that aren't values of value-taking flags.
+const VALUE_FLAGS = new Set(['--ttl', '--viewport']);
+const positional = [];
+for (let i = 0; i < args.length; i++) {
+  const a = args[i];
+  if (a.startsWith('--')) { if (VALUE_FLAGS.has(a)) i++; continue; }
+  positional.push(a);
+}
+const url = positional[0];
 const ttlIdx = args.indexOf('--ttl');
-const TTL_SEC = ttlIdx >= 0 ? parseInt(args[ttlIdx + 1], 10) : 300;
-const KEEP_TABS = args.includes('--keep-tabs');
 const vpIdx = args.indexOf('--viewport');
 // Remote viewport shown to the user — desktop by default (VNC-like view of the
 // real browser). Pass --viewport 390x844 for a mobile layout on phones.
 const VIEWPORT = vpIdx >= 0 ? args[vpIdx + 1] : '1280x720';
+// TTL: default 5 min (security). --ttl 0 = infinite, explicit opt-in only.
+// Any other value is clamped to 300s.
+const MAX_TTL = 300;
+let TTL_SEC = ttlIdx >= 0 ? parseInt(args[ttlIdx + 1], 10) : MAX_TTL;
 
-if (!url || !/^https?:\/\//.test(url)) {
-  console.error('Usage: credential-request.js <url> [--ttl <sec>] [--keep-tabs] [--viewport <WxH>]');
+if (!ATTACH && (!url || !/^https?:\/\//.test(url))) {
+  console.error('Usage: browser-share.js <url> [--ttl <sec>] [--viewport <WxH>] [--headed] [--lan]');
+  console.error('       browser-share.js --attach [--ttl <sec>] [--lan]   (share running session, all tabs)');
   process.exit(1);
 }
 if (!Number.isFinite(TTL_SEC) || TTL_SEC < 0) {
-  console.error('--ttl must be a non-negative number of seconds (0 = until Ctrl+C)');
+  console.error('--ttl must be a non-negative number of seconds (0 = infinite, explicit only)');
   process.exit(1);
+}
+if (TTL_SEC > MAX_TTL) {
+  console.error(`[browser-share] --ttl ${TTL_SEC}s exceeds max ${MAX_TTL}s — clamped`);
+  TTL_SEC = MAX_TTL;
 }
 
 // --- state for cleanup ---
@@ -125,8 +169,8 @@ function cleanup(code = 0) {
   setTimeout(() => process.exit(code), 3000).unref();
 }
 
-process.on('SIGINT', () => { console.error('\n[cred-req] interrupted — tearing down'); cleanup(0); });
-process.on('SIGTERM', () => { console.error('\n[cred-req] terminated — tearing down'); cleanup(0); });
+process.on('SIGINT', () => { console.error('\n[browser-share] interrupted — tearing down'); cleanup(0); });
+process.on('SIGTERM', () => { console.error('\n[browser-share] terminated — tearing down'); cleanup(0); });
 
 // --- port picker ---
 
@@ -234,34 +278,32 @@ function viewerHtml(token, expiresAt) {
 // --- main ---
 
 (async () => {
-  // 1. Browser: new tab with the target URL, other tabs closed.
-  // NOTE: never call `open` when the browser is already running — it relaunches
-  // and wipes every tab. `tab new` reuses the live session; only fall back to
-  // `open --headed` when no browser/daemon exists yet.
-  debug('opening target tab');
-  let tabRes = abJson(['tab', 'new', url]);
-  if (!tabRes || tabRes.success === false) {
-    debug('tab new failed — launching headed browser');
-    ab(['open', '--headed']);
-    tabRes = abJson(['tab', 'new', url]);
-    if (!tabRes || tabRes.success === false) fail('could not open target URL in browser');
-  }
-  const targetTab = tabRes.data && tabRes.data.tabId;
-  debug(`target tab: ${targetTab}`);
-
-  // Remote viewport (VNC-like desktop view by default; --viewport overrides).
-  const vp = VIEWPORT === 'desktop' ? null : VIEWPORT.match(/^(\d+)x(\d+)$/);
-  if (vp) { ab(['set', 'viewport', vp[1], vp[2]]); viewportChanged = true; }
-
-  if (!KEEP_TABS) {
-    const list = abJson(['tab']);
-    const tabs = list && list.data && list.data.tabs ? list.data.tabs : [];
-    for (const t of tabs) {
-      if (t.tabId === targetTab) continue;
-      if (t.type && t.type !== 'page') continue;
-      debug(`closing tab ${t.tabId} ${t.url}`);
-      ab(['tab', 'close', t.tabId]);
+  // 1. Browser setup.
+  // Default: kill this repo's browser instance and relaunch fresh with a single
+  // tab on the target URL — total isolation, only that view is exposed. Other
+  // repos/agents have their own daemon+profile and are unaffected. Session
+  // cookies persist in .browser-profile, so logins survive the restart.
+  // --attach: skip all of this and share the running session as-is (all tabs
+  // become switchable in the viewer).
+  if (ATTACH) {
+    debug('attach mode — sharing running session as-is');
+  } else {
+    debug('fresh instance: close --all, open <url>');
+    ab(['close', '--all']);
+    // close --all kills the daemon too — the first command after it races the
+    // daemon restart (EOF from socket). Retry open until the daemon is back.
+    const openArgs = ['open', url];
+    if (HEADED) openArgs.push('--headed');
+    let opened = false;
+    for (let i = 0; i < 10 && !opened; i++) {
+      opened = ab(openArgs).ok;
+      if (!opened) sleepSync(1000);
     }
+    if (!opened) throw new Error('browser open failed');
+
+    // Remote viewport (VNC-like desktop view by default; --viewport overrides).
+    const vp = VIEWPORT === 'desktop' ? null : VIEWPORT.match(/^(\d+)x(\d+)$/);
+    if (vp) { ab(['set', 'viewport', vp[1], vp[2]]); viewportChanged = true; }
   }
 
   // Tracker blocklist (same origins as browser.js).
@@ -279,7 +321,7 @@ function viewerHtml(token, expiresAt) {
   const streamPort = await freePort();
   ab(['stream', 'disable']);
   const en = ab(['stream', 'enable', '--port', String(streamPort)]);
-  if (!en.ok) fail('stream enable failed');
+  if (!en.ok) throw new Error('stream enable failed');
   debug(`stream on ${streamPort}`);
 
   // 3. HTTP + WS server on a random port.
@@ -355,6 +397,11 @@ function viewerHtml(token, expiresAt) {
           let msg;
           try { msg = JSON.parse(text); } catch { msg = null; }
           if (msg && msg.type === 'ack') continue; // never ack the stream
+          if (msg && msg.type === '__tab' && msg.tab) {
+            // Viewer tab switch — handled locally, never reaches the stream.
+            debug(`tab switch -> ${msg.tab}: ${abSoft(['tab', String(msg.tab)])}`);
+            continue;
+          }
           if (msg && msg.type === 'config') {
             // Forward only maxFps; strip pacing so viewers can't stall upstream.
             text = JSON.stringify({ type: 'config', maxFps: Math.min(Math.max(parseInt(msg.maxFps, 10) || 8, 1), 30) });
@@ -365,44 +412,69 @@ function viewerHtml(token, expiresAt) {
     });
   });
 
+  const listenHost = LAN ? '0.0.0.0' : '127.0.0.1';
   await new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(0, '127.0.0.1', resolve);
+    server.listen(0, listenHost, resolve);
   });
   const webPort = server.address().port;
-  debug(`viewer on 127.0.0.1:${webPort}`);
+  debug(`viewer on ${listenHost}:${webPort}`);
 
-  // 4. Cloudflare quick tunnel.
-  tunnel = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${webPort}`, '--no-autoupdate'], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  const publicUrl = await new Promise((resolve, reject) => {
-    let out = '';
-    const to = setTimeout(() => reject(new Error('cloudflared did not print a URL within 25s')), 25000);
-    const onErr = (e) => { clearTimeout(to); reject(new Error(`cloudflared: ${e.message}`)); };
-    const onData = (d) => {
-      out += d.toString();
-      debug(`cloudflared: ${d.toString().trim().slice(0, 200)}`);
-      const m = out.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
-      if (m) { clearTimeout(to); resolve(m[0]); }
-    };
-    tunnel.stdout.on('data', onData);
-    tunnel.stderr.on('data', onData);
-    tunnel.on('error', onErr);
-    tunnel.on('exit', (c) => { clearTimeout(to); reject(new Error(`cloudflared exited (${c})`)); });
-  });
+  // 4. Exposure: LAN direct or ephemeral cloudflared tunnel.
+  let publicUrl;
+  if (LAN) {
+    const ip = (() => {
+      for (const list of Object.values(os.networkInterfaces()))
+        for (const a of list || []) if (a.family === 'IPv4' && !a.internal) return a.address;
+      return 'localhost';
+    })();
+    publicUrl = `http://${ip}:${webPort}`;
+    console.log(`\n[browser-share] LAN mode — no tunnel, no cloudflared needed`);
+  } else {
+    // cloudflared resolution: PATH first, then npx (downloads the binary on
+    // first run). Works on any OS where Node+npm exist.
+    const cfProbe = spawnSync('cloudflared', ['--version'], { encoding: 'utf8', timeout: 5000 });
+    const useNpx = !!cfProbe.error;
+    debug(`cloudflared via ${useNpx ? 'npx' : 'PATH'}`);
+    const cfArgs = ['tunnel', '--url', `http://localhost:${webPort}`, '--no-autoupdate'];
+    const spawnOpts = { stdio: ['ignore', 'pipe', 'pipe'] };
+    if (useNpx) {
+      if (process.platform === 'win32') {
+        tunnel = spawn('cmd.exe', ['/d', '/s', '/c', 'npx', '-y', 'cloudflared', ...cfArgs], spawnOpts);
+      } else {
+        tunnel = spawn('npx', ['-y', 'cloudflared', ...cfArgs], spawnOpts);
+      }
+    } else {
+      tunnel = spawn('cloudflared', cfArgs, spawnOpts);
+    }
+    publicUrl = await new Promise((resolve, reject) => {
+      let out = '';
+      const to = setTimeout(() => reject(new Error('cloudflared did not print a URL within 60s (first npx run downloads the binary)')), 60000);
+      const onErr = (e) => { clearTimeout(to); reject(new Error(`cloudflared: ${e.message}`)); };
+      const onData = (d) => {
+        out += d.toString();
+        debug(`cloudflared: ${d.toString().trim().slice(0, 200)}`);
+        const m = out.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
+        if (m) { clearTimeout(to); resolve(m[0]); }
+      };
+      tunnel.stdout.on('data', onData);
+      tunnel.stderr.on('data', onData);
+      tunnel.on('error', onErr);
+      tunnel.on('exit', (c) => { clearTimeout(to); reject(new Error(`cloudflared exited (${c})`)); });
+    });
+  }
 
   const link = `${publicUrl}/?k=${token}`;
-  console.log('\n🔐 Credential access ready');
-  console.log(`   URL: ${url}`);
+  console.log('\n🔐 Browser share ready');
+  console.log(`   URL: ${url || '(attached session)'}`);
   console.log(`   Link (send to user): ${link}`);
-  console.log(`   TTL: ${TTL_SEC === 0 ? 'until Ctrl+C' : TTL_SEC + 's'} — then tunnel+viewer die automatically. Browser stays open.`);
+  console.log(`   TTL: ${TTL_SEC === 0 ? 'infinite (explicit)' : TTL_SEC + 's'} — then exposure dies automatically. Browser stays open.`);
   console.log('   Press Ctrl+C to end early.\n');
 
-  // 5. Hard TTL.
+  // 5. Hard TTL (0 = infinite, explicit opt-in only).
   if (TTL_SEC > 0) {
     setTimeout(() => {
-      console.error(`[cred-req] TTL expired — tearing down`);
+      console.error(`[browser-share] TTL expired — tearing down`);
       cleanup(0);
     }, TTL_SEC * 1000);
   }

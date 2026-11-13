@@ -404,33 +404,38 @@ When an app's internal API is undocumented, capture network requests to discover
 
 See [references/api-capture.md](references/api-capture.md) for the capture script and usage patterns.
 
-## Remote credential entry (user logs in from their phone)
+## Remote browser share (user watches/controls from their phone)
 
-When the user is not at the machine, `credential-request.js` opens the site in
-the repo browser and exposes a minimal live viewer (viewport + click/type) via an
-ephemeral Cloudflare tunnel. The agent never sees the password — keystrokes go
-from the user's device straight into the remote page.
+`browser-share.js` gives the user a temporary live view of this repo's browser
+with remote click/type — for credential entry, "show me what you're doing",
+remote login, etc. The agent never sees typed passwords: keystrokes go from the
+user's device straight into the remote page.
 
 ```bash
-node .agents/skills/browser-automation/scripts/credential-request.js <url> [--ttl <sec>] [--keep-tabs]
+# Fresh isolated instance: single tab on <url>, nothing else exposed
+node .agents/skills/browser-automation/scripts/browser-share.js <url> [--ttl <sec>] [--viewport <WxH>] [--headed] [--lan]
+
+# Attach to the running session: all open tabs, switchable in the viewer
+node .agents/skills/browser-automation/scripts/browser-share.js --attach [--ttl <sec>] [--lan]
 ```
 
 - Prints a `https://*.trycloudflare.com/?k=<token>` link — send it to the user
-  (Telegram). Default TTL 300s; tunnel+viewer die automatically, browser stays
-  open with the session. Ctrl+C ends early.
-- Opens the URL in a new tab and closes the other tabs (the stream shows the
-  active tab). `--keep-tabs` to preserve them.
-- Requires `cloudflared` on PATH and Node ≥22. Ports are random per run.
+  (Telegram). `--lan` skips the tunnel and prints a `http://<lan-ip>:<port>`
+  link instead (same WiFi only). cloudflared resolves via PATH or `npx -y`.
+- TTL: default 300s and clamped to 300s max; `--ttl 0` = infinite, explicit
+  opt-in only. Teardown kills tunnel+viewer; the browser stays open.
+- Default mode restarts this repo's browser with a single tab (cookies persist
+  in `.browser-profile`); other repos/agents are unaffected. `--attach` shares
+  the live session — the viewer shows a tab bar to switch tabs remotely.
+- Requires Node ≥22. Random ports per run — no collisions between agents.
 - The viewer UI lives in `scripts/viewer.html` (served with `%%K%%`/`%%EXPIRES%%`
   placeholders substituted per run) — edit it there to iterate on the UI.
 - The stream WS only accepts localhost origins, so the viewer page is served by
   the script's own server which bridges to `ws://127.0.0.1:<streamport>`.
 - `--viewport <WxH>` sets the remote viewport (default `1280x720`, VNC-like
   desktop view; `390x844` gives a mobile layout, `desktop` keeps native size).
-- Gotcha: never run `agent-browser open` while a browser is already running —
-  it relaunches and wipes all tabs (the script uses `tab new` for this reason).
-- Headless browsers stream fine; only escalate to headed if the site blocks
-  headless or the user also needs the local window.
+- Gotcha: `agent-browser open` relaunches and wipes all tabs when a browser is
+  already running — that's exactly what the default mode wants here.
 
 ## Anti-patterns
 
