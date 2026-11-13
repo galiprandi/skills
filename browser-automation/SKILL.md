@@ -411,6 +411,22 @@ with remote click/type — for credential entry, "show me what you're doing",
 remote login, etc. The agent never sees typed passwords: keystrokes go from the
 user's device straight into the remote page.
 
+**When to use it** — launch this script whenever the user asks to see or take
+over the browser, in any phrasing: "mostrame la pantalla/el navegador/la
+ventana", "quiero ver el navegador", "pasame acceso", "dejame entrar yo",
+"necesito ingresar la contraseña", "show me what you're doing", or when a site
+requires credentials/2FA the agent cannot provide. Don't make the user ask for
+the tool by name — recognize the intent and run it.
+
+**Which mode:**
+- Credential entry or a single focused page → default mode with the URL
+  (isolated single-tab instance, cleanest and safest).
+- "Show me what you're doing" / observe multi-step work → `--attach` so the
+  user sees all open tabs with the tab bar.
+
+Always tell the user the link is temporary (≤5 min unless they ask for
+`--ttl 0`) and send it over the chat channel.
+
 ```bash
 # Fresh isolated instance: single tab on <url>, nothing else exposed
 node .agents/skills/browser-automation/scripts/browser-share.js <url> [--ttl <sec>] [--viewport <WxH>] [--headed] [--lan]
