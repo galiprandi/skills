@@ -421,8 +421,12 @@ node .agents/skills/browser-automation/scripts/credential-request.js <url> [--tt
 - Opens the URL in a new tab and closes the other tabs (the stream shows the
   active tab). `--keep-tabs` to preserve them.
 - Requires `cloudflared` on PATH and Node ≥22. Ports are random per run.
+- The viewer UI lives in `scripts/viewer.html` (served with `%%K%%`/`%%EXPIRES%%`
+  placeholders substituted per run) — edit it there to iterate on the UI.
 - The stream WS only accepts localhost origins, so the viewer page is served by
   the script's own server which bridges to `ws://127.0.0.1:<streamport>`.
+- `--viewport <WxH>` sets the remote viewport (default `1280x720`, VNC-like
+  desktop view; `390x844` gives a mobile layout, `desktop` keeps native size).
 - Gotcha: never run `agent-browser open` while a browser is already running —
   it relaunches and wipes all tabs (the script uses `tab new` for this reason).
 - Headless browsers stream fine; only escalate to headed if the site blocks

@@ -105,8 +105,10 @@ node .agents/skills/browser-automation/scripts/test-find-guide.js
 
 ## `credential-request.js`
 
-Temporary remote access to the repo browser for user credential entry. Opens a URL in a new tab (closing others unless `--keep-tabs`), enables the agent-browser stream on a random port, serves a minimal mobile-friendly viewer through a tiny HTTP+WebSocket bridge, and exposes it via an ephemeral `cloudflared` quick tunnel. Prints a tokenized `trycloudflare.com` link; auto-tears-down after `--ttl` seconds (default 300). Requires `cloudflared` on PATH and Node >= 22.
+Temporary remote access to the repo browser for user credential entry. Opens a URL in a new tab (closing others unless `--keep-tabs`), enables the agent-browser stream on a random port, serves a minimal mobile-friendly viewer (`viewer.html`, same directory) through a tiny HTTP+WebSocket bridge, and exposes it via an ephemeral `cloudflared` quick tunnel. Prints a tokenized `trycloudflare.com` link; auto-tears-down after `--ttl` seconds (default 300). Requires `cloudflared` on PATH and Node >= 22.
 
 ```bash
-node .agents/skills/browser-automation/scripts/credential-request.js <url> [--ttl <sec>] [--keep-tabs]
+node .agents/skills/browser-automation/scripts/credential-request.js <url> [--ttl <sec>] [--keep-tabs] [--viewport <WxH>]
 ```
+
+The viewer page is a separate `viewer.html` file — the script substitutes `%%K%%` (access token) and `%%EXPIRES%%` (epoch ms) placeholders when serving it.

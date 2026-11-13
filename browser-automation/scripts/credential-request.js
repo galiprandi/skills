@@ -16,7 +16,7 @@
  *      server stopped. The browser stays open with the logged-in session.
  *
  * Usage (from the repo root):
- *   node .agents/skills/browser-automation/scripts/credential-request.js <url> [--ttl <sec>] [--keep-tabs]
+ *   node .agents/skills/browser-automation/scripts/credential-request.js <url> [--ttl <sec>] [--keep-tabs] [--viewport <WxH>]
  *
  * Requires: agent-browser (global), cloudflared on PATH, Node >= 22 (global WebSocket).
  *
@@ -90,9 +90,13 @@ const url = args.find((a) => !a.startsWith('--'));
 const ttlIdx = args.indexOf('--ttl');
 const TTL_SEC = ttlIdx >= 0 ? parseInt(args[ttlIdx + 1], 10) : 300;
 const KEEP_TABS = args.includes('--keep-tabs');
+const vpIdx = args.indexOf('--viewport');
+// Remote viewport shown to the user — desktop by default (VNC-like view of the
+// real browser). Pass --viewport 390x844 for a mobile layout on phones.
+const VIEWPORT = vpIdx >= 0 ? args[vpIdx + 1] : '1280x720';
 
 if (!url || !/^https?:\/\//.test(url)) {
-  console.error('Usage: credential-request.js <url> [--ttl <sec>] [--keep-tabs]');
+  console.error('Usage: credential-request.js <url> [--ttl <sec>] [--keep-tabs] [--viewport <WxH>]');
   process.exit(1);
 }
 if (!Number.isFinite(TTL_SEC) || TTL_SEC < 0) {
@@ -106,6 +110,7 @@ let server = null;
 let tunnel = null;
 let upstream = null;
 let cleaned = false;
+let viewportChanged = false;
 
 function cleanup(code = 0) {
   if (cleaned) return;
@@ -114,6 +119,7 @@ function cleanup(code = 0) {
   if (tunnel) { try { tunnel.kill('SIGTERM'); } catch {} }
   if (upstream) { try { upstream.close(); } catch {} }
   if (server) { try { server.close(); } catch {} }
+  if (viewportChanged) { try { ab(['set', 'viewport', '1280', '720']); } catch {} }
   // Give cloudflared a moment to die, then force.
   setTimeout(() => { try { if (tunnel) tunnel.kill('SIGKILL'); } catch {} process.exit(code); }, 800).unref();
   setTimeout(() => process.exit(code), 3000).unref();
@@ -216,97 +222,13 @@ function reassemble(frames) {
 
 // --- viewer page ---
 
-function viewerHtml(token, streamPort, expiresAt) {
-  return `<!DOCTYPE html>
-<html lang="es"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Acceso temporal</title>
-<style>
-  *{box-sizing:border-box;margin:0}
-  html,body{height:100%;background:#000;color:#eee;font-family:system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
-  #bar{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#111;font-size:12px;flex-shrink:0}
-  #dot{width:9px;height:9px;border-radius:50%;background:#f44}
-  #dot.on{background:#4c4}
-  #url{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.7}
-  #exp{opacity:.7;font-variant-numeric:tabular-nums}
-  #kbdBtn{background:#333;border:0;color:#eee;border-radius:6px;padding:4px 10px;font-size:16px}
-  #stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;background:#000;touch-action:none;overflow:hidden}
-  #view{max-width:100%;max-height:100%;display:block;user-select:none;-webkit-user-select:none}
-  #kbd{display:none;padding:8px;background:#1a1a1a;flex-shrink:0}
-  #kbd.open{display:block}
-  #typebox{width:100%;padding:10px;font-size:16px;border-radius:8px;border:1px solid #444;background:#0d0d0d;color:#eee}
-  #hint{font-size:11px;opacity:.5;padding:4px 2px}
-</style></head><body>
-<div id="bar"><span id="dot"></span><span id="url">conectando…</span><span id="exp"></span><button id="kbdBtn">⌨</button></div>
-<div id="stage"><img id="view" alt=""></div>
-<div id="kbd"><input id="typebox" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Tocá un campo del navegador y escribí acá"><div id="hint">Los caracteres se escriben en el campo que tocaste. Enter = Enter remoto. Las teclas Backspace/Delete funcionan.</div></div>
-<script>
-const K=${JSON.stringify(token)};
-const EXPIRES=${expiresAt};
-const img=document.getElementById('view'),stage=document.getElementById('stage'),
-      dot=document.getElementById('dot'),urlEl=document.getElementById('url'),expEl=document.getElementById('exp'),
-      kbd=document.getElementById('kbd'),typebox=document.getElementById('typebox');
-document.getElementById('kbdBtn').onclick=()=>kbd.classList.toggle('open');
-let ws=null,vw=0,vh=0,seq=0;
-function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o));}
-function scale(e){const r=img.getBoundingClientRect();
-  const fx=(e.clientX-r.left)/r.width, fy=(e.clientY-r.top)/r.height;
-  return {x:Math.round(fx*vw),y:Math.round(fy*vh)};}
-function mod(m){let v=0;if(m.altKey)v|=1;if(m.ctrlKey)v|=2;if(m.metaKey)v|=4;if(m.shiftKey)v|=8;return v;}
-const VK={Enter:13,Backspace:8,Tab:9,Escape:27,Delete:46,Home:36,End:35,PageUp:33,PageDown:34,' ':32,
-  ArrowLeft:37,ArrowUp:38,ArrowRight:39,ArrowDown:40};
-function keyPayload(key,code,text,evt){return{type:'input_keyboard',eventType:'keyDown',key,code:code||'',
-  text:text||'',windowsVirtualKeyCode:VK[key]||(key&&key.length===1?key.toUpperCase().charCodeAt(0):0),
-  modifiers:mod(evt||{})};}
-function sendChar(ch){send(keyPayload(ch,'',ch,{}));send({...keyPayload(ch,'',ch,{}),eventType:'keyUp'});}
-function sendSpecial(key){const p=keyPayload(key,'','',{});send(p);send({...p,eventType:'keyUp'});}
-// pointer → mouse
-const pts=new Map();let lastMove=0;
-stage.addEventListener('pointerdown',e=>{stage.setPointerCapture(e.pointerId);pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  const p=scale(e);send({type:'input_mouse',eventType:'mousePressed',x:p.x,y:p.y,button:'left',clickCount:1,modifiers:0});e.preventDefault();});
-stage.addEventListener('pointerup',e=>{pts.delete(e.pointerId);
-  const p=scale(e);send({type:'input_mouse',eventType:'mouseReleased',x:p.x,y:p.y,button:'left',clickCount:1,modifiers:0});});
-stage.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  const now=Date.now();if(now-lastMove<50)return;lastMove=now;
-  if(pts.size>=2){const a=[...pts.values()];send({type:'input_mouse',eventType:'mouseWheel',x:0,y:0,button:'none',clickCount:0,deltaX:0,deltaY:(a[0].y-a[1].y)*3,modifiers:0});return;}
-  const p=scale(e);send({type:'input_mouse',eventType:'mouseMoved',x:p.x,y:p.y,button:'none',clickCount:0,modifiers:0});});
-stage.addEventListener('wheel',e=>{e.preventDefault();const p=scale(e);
-  send({type:'input_mouse',eventType:'mouseWheel',x:p.x,y:p.y,button:'none',clickCount:0,deltaX:-e.deltaX,deltaY:e.deltaY,modifiers:0});},{passive:false});
-// typing box → remote keystrokes (beforeinput covers mobile keyboards/IME)
-let composing=false;
-typebox.addEventListener('compositionstart',()=>{composing=true;});
-typebox.addEventListener('compositionend',e=>{composing=false;
-  for(const ch of (e.data||''))sendChar(ch);typebox.value='';});
-typebox.addEventListener('beforeinput',e=>{
-  if(composing)return;
-  if(e.inputType==='insertText'&&e.data){for(const ch of e.data)sendChar(ch);e.preventDefault();}
-  else if(e.inputType==='deleteContentBackward'){sendSpecial('Backspace');e.preventDefault();}
-  else if(e.inputType==='deleteContentForward'){sendSpecial('Delete');e.preventDefault();}
-});
-typebox.addEventListener('input',()=>{typebox.value='';});
-typebox.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendSpecial('Enter');typebox.blur();kbd.classList.remove('open');}});
-// physical keyboard (desktop)
-window.addEventListener('keydown',e=>{if(document.activeElement===typebox)return;e.preventDefault();
-  const p=keyPayload(e.key,e.code,e.key.length===1?e.key:'',e);send(p);send({...p,eventType:'keyUp'});});
-window.addEventListener('keyup',e=>{if(document.activeElement===typebox)return;});
-// ws
-function connect(){
-  ws=new WebSocket(location.origin.replace(/^http/,'ws')+'/ws?k='+encodeURIComponent(K)+'&pacing=ack&maxFps=8');
-  ws.onopen=()=>{dot.classList.add('on');send({type:'config',pacing:'ack',maxFps:8});};
-  ws.onclose=()=>{dot.classList.remove('on');urlEl.textContent='desconectado — recargá para reintentar';setTimeout(connect,2000);};
-  ws.onmessage=ev=>{const m=JSON.parse(ev.data);
-    if(m.type==='frame'){img.src='data:image/jpeg;base64,'+m.data;seq=m.seq;
-      img.onload=()=>send({type:'ack',seq});}
-    else if(m.type==='url'){urlEl.textContent=m.url||m.data||'';}
-    else if(m.type==='status'&&m.url){urlEl.textContent=m.url;}
-    else if(m.type==='tabs'&&m.tabs&&m.tabs.activeUrl){urlEl.textContent=m.tabs.activeUrl;}
-  };
-}
-connect();
-const iv=setInterval(()=>{const s=Math.max(0,Math.round((EXPIRES-Date.now())/1000));
-  expEl.textContent=s>0?'⏱ '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0'):'⏱ vencido';
-  if(s<=0)clearInterval(iv);},1000);
-</script></body></html>`;
+const VIEWER_HTML_PATH = path.join(__dirname, 'viewer.html');
+let _viewerTemplate = null;
+function viewerHtml(token, expiresAt) {
+  if (!_viewerTemplate) _viewerTemplate = fs.readFileSync(VIEWER_HTML_PATH, 'utf8');
+  return _viewerTemplate
+    .replace('%%K%%', token)
+    .replace('%%EXPIRES%%', String(expiresAt));
 }
 
 // --- main ---
@@ -326,6 +248,10 @@ const iv=setInterval(()=>{const s=Math.max(0,Math.round((EXPIRES-Date.now())/100
   }
   const targetTab = tabRes.data && tabRes.data.tabId;
   debug(`target tab: ${targetTab}`);
+
+  // Remote viewport (VNC-like desktop view by default; --viewport overrides).
+  const vp = VIEWPORT === 'desktop' ? null : VIEWPORT.match(/^(\d+)x(\d+)$/);
+  if (vp) { ab(['set', 'viewport', vp[1], vp[2]]); viewportChanged = true; }
 
   if (!KEEP_TABS) {
     const list = abJson(['tab']);
@@ -359,7 +285,7 @@ const iv=setInterval(()=>{const s=Math.max(0,Math.round((EXPIRES-Date.now())/100
   // 3. HTTP + WS server on a random port.
   const token = crypto.randomBytes(24).toString('hex');
   const expiresAt = Date.now() + (TTL_SEC || 24 * 3600) * 1000;
-  const html = viewerHtml(token, streamPort, expiresAt);
+  const html = viewerHtml(token, expiresAt);
   const clients = new Set();
 
   // Latest message per type — replayed to each new viewer so clients that
