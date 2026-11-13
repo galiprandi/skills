@@ -418,6 +418,12 @@ ventana", "quiero ver el navegador", "pasame acceso", "dejame entrar yo",
 requires credentials/2FA the agent cannot provide. Don't make the user ask for
 the tool by name — recognize the intent and run it.
 
+**When NOT to use it:** if the agent runs on the same computer the user is
+physically sitting at, the user can already see the browser window — just tell
+them to look at it (or use `--headed` so the window is visible) instead of
+exposing a link. `browser-share` is for remote viewing: agent on a different
+machine, or user away from the computer using their phone.
+
 **Which mode:**
 - Credential entry or a single focused page → default mode with the URL
   (isolated single-tab instance, cleanest and safest).
