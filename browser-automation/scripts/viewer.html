@@ -25,10 +25,10 @@
   #echoClear{background:none;border:0;color:#888;font-size:14px;cursor:pointer;padding:2px 6px}
   #hint{font-size:11px;opacity:.5;padding:4px 2px}
 </style></head><body>
-<div id="bar"><span id="dot"></span><span id="url">conectando…</span><span id="exp"></span><button id="kbdBtn">⌨</button></div>
+<div id="bar"><span id="dot"></span><span id="url">conectando…</span><span id="exp"></span><button id="kbdBtn">Teclado</button></div>
 <div id="tabs"></div>
 <div id="stage"><img id="view" alt=""></div>
-<div id="kbd"><input id="typebox" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Tocá un campo del navegador y escribí acá"><div id="echo"><span id="echoText"></span><button id="echoClear" title="Limpiar eco">✕</button></div><div id="hint">Los caracteres se escriben en el campo que tocaste. Enter = Enter remoto. Las teclas Backspace/Delete funcionan.</div></div>
+<div id="kbd" class="open"><input id="typebox" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" autofocus placeholder="Tocá un campo del navegador y escribí acá"><div id="echo"><span id="echoText"></span><button id="echoClear" title="Limpiar eco">✕</button></div><div id="hint">Los caracteres se escriben en el campo que tocaste. Enter = Enter remoto. Las teclas Backspace/Delete funcionan.</div></div>
 <script>
 const K="%%K%%";
 const EXPIRES=%%EXPIRES%%;
@@ -95,6 +95,8 @@ typebox.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();se
 window.addEventListener('keydown',e=>{if(document.activeElement===typebox)return;e.preventDefault();
   const p=keyPayload(e.key,e.code,e.key.length===1?e.key:'',e);send(p);send({...p,eventType:'keyUp'});});
 window.addEventListener('keyup',e=>{if(document.activeElement===typebox)return;});
+// focus the typing box so mobile keyboards open immediately
+typebox.focus();
 // ws
 function connect(){
   ws=new WebSocket(location.origin.replace(/^http/,'ws')+'/ws?k='+encodeURIComponent(K)+'&pacing=ack&maxFps=8');
