@@ -74,7 +74,7 @@ stage.addEventListener('wheel',e=>{e.preventDefault();const p=scale(e);
 // typing box → remote keystrokes (beforeinput covers mobile keyboards/IME)
 let composing=false,typed='';
 const echoText=document.getElementById('echoText');
-function renderEcho(){echoText.textContent=typed?'•'.repeat(typed.length):'';}
+function renderEcho(){echoText.textContent=typed;}
 document.getElementById('echoClear').onclick=()=>{typed='';renderEcho();};
 typebox.addEventListener('compositionstart',()=>{composing=true;});
 typebox.addEventListener('compositionend',e=>{composing=false;
