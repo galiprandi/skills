@@ -111,14 +111,14 @@ In all other cases, use the keyboard.
 - Node.js 18+ and npm
 - agent-browser: `npm install -g agent-browser` (system Chrome required)
 - A persistent profile directory (gitignored) for auth state
-- Manual login for each new site (agent opens headed mode, user logs in once)
+- First login per site — prefer the site's remote auth flow when one exists (see "Credentials & login" in the consuming repo's `AGENTS.md`, e.g. WhatsApp phone-number linking); otherwise manual headed login once
 
 Full first-time setup (Chrome, profile, config): [SETUP.md](SETUP.md)
 
 ## Limitations
 
 - **No captcha solving**: if a captcha appears, stop and ask the user
-- **No programmatic login**: first login is always manual (headed mode); subsequent sessions reuse the saved profile
+- **No programmatic login**: the agent never enters credentials. First login uses the site's remote/phone-completable flow when available (see `AGENTS.md` → "Credentials & login"); otherwise manual headed mode once — subsequent sessions reuse the saved profile
 - **Refs are ephemeral**: `[ref=eXXX]` identifiers change after every page mutation — always get fresh refs before interacting
 - **Full snapshots of complex SPAs are huge and truncated**: use `find` or `eval` instead of full snapshots on Gmail, LinkedIn, Facebook, etc.
 - **Site guides break over time**: selectors and API endpoints change as sites update — run `npx skills update` before starting, and if a selector fails, update the skill first
