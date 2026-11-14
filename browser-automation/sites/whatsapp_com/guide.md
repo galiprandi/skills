@@ -20,12 +20,15 @@ node .agents/skills/browser-automation/scripts/browser.js goto "https://web.what
 
 Wait 5-8 seconds for the chat list to load. WhatsApp Web is a SPA that needs time to hydrate.
 
-### Login
+### Login — phone-number linking FIRST (works headless, no screen needed)
 
-WhatsApp Web requires QR code scanning from a phone. If the session is expired, open in headed mode so the user can scan:
+WhatsApp Web offers two linking methods. **Always prefer phone-number
+linking**: the whole flow completes on the user's phone — no QR scan, no
+screen watching. See `login-flow.md` for details. (Login screens verified
+2026-11-14.)
 
 ```bash
-node .agents/skills/browser-automation/scripts/browser.js open "https://web.whatsapp.com/" --headed
+node .agents/skills/browser-automation/scripts/browser.js open "https://web.whatsapp.com/"
 ```
 
 The session persists in `.browser-profile` so subsequent opens are headless.
