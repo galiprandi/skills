@@ -1,7 +1,7 @@
 ---
 name: remote-desktop
-version: "1.0.0"
-description: Give the user live view+control of this machine's desktop through an ephemeral Cloudflare tunnel (KasmVNC). Use when the user needs to interact with the screen themselves — entering credentials, 2FA, visual verification — and cannot do it through the browser alone.
+version: "1.0.1"
+description: Give the user occasional, event-driven access to this machine's desktop through an ephemeral Cloudflare tunnel (KasmVNC). Use ONLY for specific situations where the user must take over the screen themselves — first-run setup, entering credentials or 2FA, solving a captcha or anti-bot block, or visual verification — and cannot do it through the browser alone. Not for routine automation and not a permanent access channel.
 allowed-tools: Bash(*)
 metadata:
   author: galiprandi
@@ -16,9 +16,10 @@ Expose the pod's KasmVNC desktop (`https://127.0.0.1:6901`, sslOnly) through
 an ephemeral Cloudflare quick tunnel so the user can see and control the
 machine from their phone.
 
-**Use when:** the user must type credentials/2FA/captcha on a screen, verify
-something visually, or take over an interactive flow the browser skill can't
-complete remotely.
+**Use ONLY for event-driven takeover situations:** first-run setup where the
+user must enter credentials, 2FA or captcha, an anti-bot block that requires
+human verification, or a visual check the browser skill cannot perform.
+This is an occasional escape hatch — not a routine tool.
 
 **Do NOT use for:** routine automation (use browser-automation), or as a
 permanent access channel — tunnels are ephemeral by design.
