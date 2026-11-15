@@ -834,3 +834,42 @@ Gmail supports multiple accounts in the same browser. The URL pattern includes t
 - **Don't** use `keyboard type` for long multiline body text — use `fill @eN` or eval with native setter
 - **Don't** navigate to `#inbox` expecting all emails — Gmail splits into categories, use `#all`
 - **Don't** archive emails without explicit user confirmation — always ask first
+
+## Compose via URL params + attachment upload (validated 2026-11-14)
+
+**Opening a prefilled compose:** navigating to
+`https://mail.google.com/mail/?view=cm&fs=1&to=<email>&su=<urlencoded subject>`
+opens a full-screen compose dialog with To and Subject already filled — no need
+to click "Redactar" or fill recipients manually.
+
+**Body fill — `insertText` is the reliable path.** `fill`/`type` on snapshot
+refs for the body (`div[aria-label*="Cuerpo"]` / `"Message body"`) intermittently
+returns `Unknown ref` depending on backend/tab state. The dependable fallback:
+
+```js
+// exec eval — focus + insertText on the REAL body (aria-label filter avoids
+// the Gemini "Describe tu mensaje" decoy — see Gemini editor trap above)
+const ed = document.querySelector('div[aria-label*="Cuerpo"], div[contenteditable=true][aria-label*="Message body"]');
+ed.focus();
+document.execCommand('insertText', false, 'your text here');
+// verify: ed.innerText.length > 0 BEFORE clicking Enviar
+```
+
+**Attachment upload:** `agent-browser exec upload "input[type=file]" <path>`
+works directly against the hidden file input — no file-chooser dance needed.
+**Use an ABSOLUTE path**: a relative path uploads a 0-byte file and Gmail
+rejects it with "Este archivo contiene 0 bytes; por tanto, no se adjuntará."
+After upload, verify `document.body.innerText` contains the filename before
+sending.
+
+**Send:** the compose Send control is a `div[role=button]` with text "Enviar".
+A dispatched MouseEvent sequence works:
+
+```js
+['pointerdown','mousedown','pointerup','mouseup','click'].forEach(t =>
+  btn.dispatchEvent(new MouseEvent(t, {bubbles:true, cancelable:true, view:window})));
+```
+
+Then confirm via `document.body.innerText.includes('Mensaje enviado')`.
+**Always verify the body text landed before sending** — a failed fill is
+silent and the email goes out empty (observed in production).
