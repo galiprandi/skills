@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # pod-vnc — expose the pod's KasmVNC desktop through an ephemeral
-# Cloudflare quick tunnel. Gives the user live view+control from their
-# phone (credential entry, 2FA, visual checks) without any password:
-# the injected proxy makes the URL itself the credential.
+# Cloudflare quick tunnel so the user can take control of the screen from
+# their phone: enter credentials/2FA, solve captchas, or look at the desktop.
+#
+# Each `start` generates a fresh 6-digit OTP. The URL alone is NOT enough:
+# the proxy asks for the code before it injects the KasmVNC credentials, and
+# the WebSocket upgrade is gated too. The code is printed with the URL.
 #
 # Usage:
 #   pod-vnc start    # proxy + tunnel up, prints the public URL
@@ -17,18 +20,30 @@ set -euo pipefail
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE="$HOME/.local/state/pod-vnc"
 PROXY_PORT="${POD_VNC_PORT:-6099}"
+OTP_FILE="$STATE/otp"
 mkdir -p "$STATE"
 
 cf_bin() {
   command -v cloudflared || echo "$HOME/.local/bin/cloudflared"
 }
 
-proxy_pid()   { pgrep -f "vnc-proxy.py" | head -1 || true; }
+# Proxy runtime: Node >= 20, no external packages. No Python required.
+proxy_cmd() {
+  command -v node >/dev/null 2>&1 || return 1
+  local major
+  major=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
+  [ "${major:-0}" -ge 20 ] || return 1
+  [ -f "$SKILL_DIR/vnc-proxy.mjs" ] || return 1
+  echo "node $SKILL_DIR/vnc-proxy.mjs"
+}
+
+proxy_pid()   { pgrep -f "vnc-proxy.mjs" | head -1 || true; }
 tunnel_pid()  { pgrep -f "cloudflared tunnel --url http://127.0.0.1:${PROXY_PORT}" | head -1 || true; }
 
 cmd_start() {
   if [ -n "$(proxy_pid)" ] && [ -n "$(tunnel_pid)" ]; then
-    echo "already running: $(cat "$STATE/url" 2>/dev/null || echo '(url unknown)')"
+    echo "url:     $(cat "$STATE/url" 2>/dev/null || echo '(url unknown)')"
+    [ -f "$OTP_FILE" ] && echo "otp:     $(cat "$OTP_FILE")"
     return 0
   fi
 
@@ -38,13 +53,34 @@ cmd_start() {
       echo "error: port ${PROXY_PORT} already serves HTTP — refusing to start" >&2
       exit 1
     fi
+    local cmd
+    cmd=$(proxy_cmd) || { echo "error: need node >= 20 (no external packages)" >&2; exit 1; }
+
+    # Fresh one-time code per start. The URL alone is no longer enough.
+    local otp="${POD_VNC_OTP:-}"
+    if [ -z "$otp" ]; then
+      otp=$(node -e 'process.stdout.write(String(Math.floor(Math.random()*1e6)).padStart(6,"0"))')
+    fi
+    printf '%s' "$otp" >"$OTP_FILE"
+    chmod 600 "$OTP_FILE" 2>/dev/null || true
+
+    # shellcheck disable=SC2086
     PROXY_CREDS="kasm_user:${VNC_PW:?VNC_PW not set}" \
       PROXY_PORT="$PROXY_PORT" \
-      setsid nohup python3 "$SKILL_DIR/vnc-proxy.py" \
+      POD_VNC_OTP="$otp" \
+      POD_VNC_OTP_TTL="${POD_VNC_OTP_TTL:-300}" \
+      POD_VNC_OTP_TRIES="${POD_VNC_OTP_TRIES:-3}" \
+      setsid nohup $cmd \
         >"$STATE/proxy.log" 2>&1 </dev/null &
     sleep 1
-    curl -s -o /dev/null --max-time 5 "http://127.0.0.1:${PROXY_PORT}/" \
-      || { echo "error: proxy failed, see $STATE/proxy.log" >&2; exit 1; }
+    # 401 means the OTP gate is up; 200 means OTP is disabled. Either is alive.
+    local code
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+      "http://127.0.0.1:${PROXY_PORT}/healthz" 2>/dev/null || echo 000)
+    case "$code" in
+      200|401|303) ;;
+      *) echo "error: proxy failed (health=$code), see $STATE/proxy.log" >&2; exit 1 ;;
+    esac
   fi
 
   # 2. cloudflared quick tunnel
@@ -62,7 +98,10 @@ cmd_start() {
     echo "$url" >"$STATE/url"
   fi
 
-  echo "$(cat "$STATE/url")"
+  echo "url:     $(cat "$STATE/url")"
+  if [ -f "$OTP_FILE" ]; then
+    echo "otp:     $(cat "$OTP_FILE")  (vence en ${POD_VNC_OTP_TTL:-300}s · ${POD_VNC_OTP_TRIES:-3} intentos)"
+  fi
 }
 
 cmd_status() {
@@ -71,12 +110,13 @@ cmd_status() {
   echo "proxy:   $([ -n "$p" ] && echo "up (pid $p)" || echo down)"
   echo "tunnel:  $([ -n "$t" ] && echo "up (pid $t)" || echo down)"
   [ -f "$STATE/url" ] && echo "url:     $(cat "$STATE/url")"
+  [ -f "$OTP_FILE" ] && echo "otp:     $(cat "$OTP_FILE")"
 }
 
 cmd_stop() {
   pkill -f "cloudflared tunnel --url http://127.0.0.1:${PROXY_PORT}" 2>/dev/null || true
-  pkill -f "vnc-proxy.py" 2>/dev/null || true
-  rm -f "$STATE/url"
+  pkill -f "vnc-proxy.mjs" 2>/dev/null || true
+  rm -f "$STATE/url" "$OTP_FILE"
   echo "stopped"
 }
 
