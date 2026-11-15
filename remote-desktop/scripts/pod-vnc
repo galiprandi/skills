@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# pod-vnc — expose the pod's KasmVNC desktop through an ephemeral
+# Cloudflare quick tunnel. Gives the user live view+control from their
+# phone (credential entry, 2FA, visual checks) without any password:
+# the injected proxy makes the URL itself the credential.
+#
+# Usage:
+#   pod-vnc start    # proxy + tunnel up, prints the public URL
+#   pod-vnc status   # show URL and whether processes are alive
+#   pod-vnc stop     # tear everything down
+#
+# State lives in ~/.local/state/pod-vnc/. Ephemeral: URL dies with the
+# tunnel. Run `pod-vnc stop` when the user is done.
+
+set -euo pipefail
+
+SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STATE="$HOME/.local/state/pod-vnc"
+PROXY_PORT="${POD_VNC_PORT:-6099}"
+mkdir -p "$STATE"
+
+cf_bin() {
+  command -v cloudflared || echo "$HOME/.local/bin/cloudflared"
+}
+
+proxy_pid()   { pgrep -f "vnc-proxy.py" | head -1 || true; }
+tunnel_pid()  { pgrep -f "cloudflared tunnel --url http://127.0.0.1:${PROXY_PORT}" | head -1 || true; }
+
+cmd_start() {
+  if [ -n "$(proxy_pid)" ] && [ -n "$(tunnel_pid)" ]; then
+    echo "already running: $(cat "$STATE/url" 2>/dev/null || echo '(url unknown)')"
+    return 0
+  fi
+
+  # 1. proxy (TLS termination + auth injection -> KasmVNC :6901)
+  if [ -z "$(proxy_pid)" ]; then
+    if curl -s -o /dev/null --max-time 3 "http://127.0.0.1:${PROXY_PORT}/"; then
+      echo "error: port ${PROXY_PORT} already serves HTTP — refusing to start" >&2
+      exit 1
+    fi
+    PROXY_CREDS="kasm_user:${VNC_PW:?VNC_PW not set}" \
+      PROXY_PORT="$PROXY_PORT" \
+      setsid nohup python3 "$SKILL_DIR/vnc-proxy.py" \
+        >"$STATE/proxy.log" 2>&1 </dev/null &
+    sleep 1
+    curl -s -o /dev/null --max-time 5 "http://127.0.0.1:${PROXY_PORT}/" \
+      || { echo "error: proxy failed, see $STATE/proxy.log" >&2; exit 1; }
+  fi
+
+  # 2. cloudflared quick tunnel
+  if [ -z "$(tunnel_pid)" ]; then
+    : >"$STATE/cf.log"
+    setsid nohup "$(cf_bin)" tunnel --url "http://127.0.0.1:${PROXY_PORT}" \
+      --no-autoupdate >"$STATE/cf.log" 2>&1 </dev/null &
+    local url=""
+    for _ in $(seq 1 30); do
+      url=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$STATE/cf.log" | tail -1 || true)
+      [ -n "$url" ] && break
+      sleep 1
+    done
+    [ -n "$url" ] || { echo "error: tunnel URL never appeared, see $STATE/cf.log" >&2; exit 1; }
+    echo "$url" >"$STATE/url"
+  fi
+
+  echo "$(cat "$STATE/url")"
+}
+
+cmd_status() {
+  local p t
+  p=$(proxy_pid); t=$(tunnel_pid)
+  echo "proxy:   $([ -n "$p" ] && echo "up (pid $p)" || echo down)"
+  echo "tunnel:  $([ -n "$t" ] && echo "up (pid $t)" || echo down)"
+  [ -f "$STATE/url" ] && echo "url:     $(cat "$STATE/url")"
+}
+
+cmd_stop() {
+  pkill -f "cloudflared tunnel --url http://127.0.0.1:${PROXY_PORT}" 2>/dev/null || true
+  pkill -f "vnc-proxy.py" 2>/dev/null || true
+  rm -f "$STATE/url"
+  echo "stopped"
+}
+
+case "${1:-}" in
+  start)  cmd_start ;;
+  status) cmd_status ;;
+  stop)   cmd_stop ;;
+  *) echo "usage: pod-vnc {start|status|stop}" >&2; exit 2 ;;
+esac
