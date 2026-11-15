@@ -475,3 +475,64 @@ See [posting.md](posting.md) for the full posting workflow (composer variants, t
 - `exec keyboard type` does NOT interpret `\n` — they stay as literal characters in the sent text.
 - For multiline: `keyboard type` per chunk + `press Shift+Enter` between paragraphs (plain Enter SENDS the message in LinkedIn's composer).
 - Alternative: `exec keyboard inserttext` with the full text (unverified after agent-browser migration), or paste via eval with innerHTML and `<br>`/`data-start` for many paragraphs.
+
+## Profile editing — summary, experience, languages (validated 2026-11-14)
+
+Profile edit forms are full pages, not modals:
+
+- Summary/About: `/in/<user>/edit/forms/summary/new?profileFormEntryPoint=PROFIL`
+- Experience list (with position IDs): `/in/<user>/details/experience/`
+- Position edit: `/in/<user>/details/experience/edit/forms/<positionId>/`
+- Language edit: `/in/<user>/details/languages/edit/forms/<languageId>/`
+- Skills add: `/in/<user>/skills/edit/forms/new/` (full-page form)
+
+**Summary editor is ProseMirror/tiptap** (`.ProseMirror` contenteditable, NOT a
+textarea). To replace the whole text reliably:
+
+```js
+const ed = document.querySelector('.ProseMirror');
+ed.focus();
+const sel = window.getSelection();
+const r = document.createRange();
+r.selectNodeContents(ed); sel.removeAllRanges(); sel.addRange(r);
+document.execCommand('delete');
+// insertHTML preserves paragraph breaks — build '<p>para1</p><p>para2</p>'
+document.execCommand('insertHTML', false, html);
+```
+
+Verify `ed.innerText.length` before clicking Guardar. Save redirects to a
+`/edit/forms/next-action/premium-*` upsell URL — that IS success, not an error.
+
+**Experience dates are NATIVE `<select>` elements**, not the combobox UI shown
+in snapshots. Clicking the snapshot combobox options does not commit. Set the
+value and dispatch events directly:
+
+```js
+const sels = document.querySelectorAll('select');
+// order: location-type, employment-type, start-month, start-year, end-month, end-year, locale
+const endMonth = sels[4], endYear = sels[5];
+endMonth.value = '9';  // months are 1-12 (Septiembre = 9)
+endYear.value = '2025';
+endMonth.dispatchEvent(new Event('change', {bubbles:true}));
+endMonth.dispatchEvent(new Event('input', {bubbles:true}));
+```
+
+"Actualmente tengo este cargo" is a checkbox input — toggle via `.click()` on
+the input (the snapshot ref click may not register). Unchecking it reveals the
+end-date selects.
+
+**Delete a position:** "Eliminar" button → confirmation is a plain `div`
+(heading "Eliminar puesto", NOT `role=dialog`) with a second "Eliminar" button.
+Snapshot the confirm button ref fresh — refs change after the first click.
+
+**Skills "Añadir aptitud" widget — KNOWN LIMITATION (validated headless AND
+headed, 2026-11-14):** typing a skill name shows suggestions, but no synthetic
+interaction selects one — `click` on option/button refs, `find role option
+click`, ArrowDown+Enter, and dispatched mouse-event sequences all leave the
+raw text in the input and Guardar never enables. The widget appears to require
+a trusted user gesture. Workaround: leave the form open for the user to click,
+or add skills from the LinkedIn mobile app.
+
+**OpenToWork check:** `/jobs/preferences` shows "En busca de empleo" plus the
+visibility selector ("visible solo para técnicos de selección" = recruiters
+only). Verify there rather than guessing from the profile banner.
