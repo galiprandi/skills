@@ -12,6 +12,16 @@ AI Skills are specialized knowledge modules that teach your AI assistant how to 
 
 ## 📦 Available Skills
 
+### LiteLLM Sources
+
+**litellm-sources** — Forces verification of every LiteLLM answer against official sources before stating anything (APIs, config.yaml, proxy flags, pricing, model strings, SDK). LiteLLM changes fast; this skill bans answering from memory.
+
+**What it helps with:**
+- Ordered source list: `litellm-docs` MCP → `llms.txt` → page `.md` suffix → `llms-full.txt` → source code → changelog
+- Topic → source mapping (model strings, proxy config, SDK, admin endpoints, routing)
+- Proactively offers to install the read-only `litellm-docs` MCP (snippets for Claude Code, Codex, OpenCode, VS Code)
+- Answer checklist: every claim must cite a URL; version-dependent claims verified against changelog
+
 ### Browser Automation ⭐
 
 **browser-automation** — Control a dedicated browser via playwright-cli for web automation. Covers generic browser operations (golden rules, safe wrapper, parallel sessions, profile management) plus site-specific guides for Gmail, LinkedIn, Teams, Jira, Teamtailor, and Humand.co — loaded on demand to save tokens.
