@@ -31,7 +31,7 @@ screen watching. See `login-flow.md` for details. (Login screens verified
 node .agents/skills/browser-automation/scripts/browser.js open "https://web.whatsapp.com/"
 ```
 
-The session persists in `.browser-profile` so subsequent opens are headless.
+The session persists in `.browser-profile` so subsequent opens reuse the logged-in session.
 
 ## Keyboard shortcuts (PREFERRED over UI clicks)
 

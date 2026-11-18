@@ -185,14 +185,14 @@ node .agents/skills/browser-automation/scripts/browser.js exec batch "press g" "
 ## Setup
 
 ```bash
-# Open Gmail (headless if already logged in, headed for login)
+# Open Gmail (headed is the default; also used for login)
 node .agents/skills/browser-automation/scripts/browser.js open "https://mail.google.com" --headed
 
 # If login needed: user logs in manually, then save state
 node .agents/skills/browser-automation/scripts/browser.js save-state
 node .agents/skills/browser-automation/scripts/browser.js close
 
-# Next sessions: load state and go headless
+# Next sessions: open + load state, cookies already persisted
 node .agents/skills/browser-automation/scripts/browser.js open "https://mail.google.com"
 node .agents/skills/browser-automation/scripts/browser.js load-state
 ```

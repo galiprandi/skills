@@ -14,7 +14,7 @@ Automate LinkedIn using a mix of UI interactions and internal Voyager API endpoi
 ## Setup
 
 ```bash
-# Open LinkedIn (headless if already logged in, headed for login)
+# Open LinkedIn (headed is the default; also used for login)
 node .agents/skills/browser-automation/scripts/browser.js open "https://www.linkedin.com" --headed
 
 # If login needed: user logs in manually. No save-state/load-state exists —
