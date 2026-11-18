@@ -256,11 +256,8 @@ function tunnelWebSocket(req, socket, head) {
   let handshaken = false;
   let buf = Buffer.alloc(0);
 
-  up.on('data', (chunk) => {
-    if (handshaken) {
-      socket.write(chunk);
-      return;
-    }
+  const onUpstreamData = (chunk) => {
+    if (handshaken) return; // pipe() ya toma el control del stream
     buf = Buffer.concat([buf, chunk]);
     const idx = buf.indexOf('\r\n\r\n');
     if (idx < 0) return;
@@ -285,10 +282,15 @@ function tunnelWebSocket(req, socket, head) {
     );
     if (rest.length) socket.write(rest);
     handshaken = true;
+    // Quitar el listener ANTES de pipear: si queda, cada chunk upstream se
+    // escribe dos veces al cliente (listener + pipe) y el stream RFB se
+    // desincroniza — el browser quedaba en "connecting…" eterno.
+    up.removeListener('data', onUpstreamData);
     socket.pipe(up);
     up.pipe(socket);
-  });
+  };
 
+  up.on('data', onUpstreamData);
   up.on('error', (e) => {
     log('ws error:', e.message);
     if (!socket.destroyed) socket.destroy();

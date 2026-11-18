@@ -34,7 +34,7 @@ node .agents/skills/browser-automation/scripts/browser.js open https://example.c
 - Sessions (logins) persist in `.browser-profile/` — same directory as the previous engine; the profile is 100% compatible.
 - **Never run two browsers on the same profile at once** (SingletonLock).
 - **Google sites (Gmail, Calendar, Drive):** the login must happen INSIDE the automated browser (headed) — Google rejects sign-ins inherited from regular Chrome in a CDP context. Once logged in, the session persists.
-- **Authentication prefers phone-completable flows** (link codes, push approvals — e.g. WhatsApp phone-number linking) over on-screen login, since the user may not see the screen. When a site only supports on-screen auth, `browser-share.js` gives the user remote view+control. No passwords through chat channels, no credential vaults — the Chrome profile is the only credential store.
+- **Authentication prefers phone-completable flows** (link codes, push approvals — e.g. WhatsApp phone-number linking) over on-screen login, since the user may not see the screen. When a site only supports on-screen auth, use the `remote-desktop` skill to give the user remote view+control of the desktop. No passwords through chat channels, no credential vaults — the Chrome profile is the only credential store.
 
 ## Diagnostics — `agent-browser doctor`
 

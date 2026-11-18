@@ -32,7 +32,7 @@ node .agents/skills/browser-automation/scripts/browser.js open "https://web.what
 
 ## Fallback — QR scan (requires seeing the screen)
 
-Only if phone linking fails or the user prefers it. Useless for remote/headless users unless via `browser-share.js`.
+Only if phone linking fails or the user prefers it. Useless for remote/headless users unless via the `remote-desktop` skill (VNC tunnel).
 
 ```bash
 node .agents/skills/browser-automation/scripts/browser.js open "https://web.whatsapp.com/" --headed
