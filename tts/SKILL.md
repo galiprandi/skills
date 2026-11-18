@@ -31,22 +31,35 @@ echo "Texto largo..." | edge-tts --voice es-AR-ElenaNeural --write-media out.mp3
 - `en-US-AriaNeural`, `en-US-GuyNeural` — English.
 - List all: `edge-tts --list-voices | grep es-`
 
-## Filename convention (IMPORTANT)
+## Naming + metadata (IMPORTANT)
 
-The filename MUST describe the content, not be generic — audio files accumulate as a history and must be easy to find later.
+Every generated audio MUST carry a short human title and a brief description as embedded metadata — audio files accumulate as a history and must be easy to find and identify later, both in the filesystem and inside the player's info panel.
 
-Pattern: `<tipo>-<tema>-<fecha>.<ext>`
+### Filename
 
-Examples:
-- `digest-noticias-2026-11-18.mp3`
-- `briefing-diario-2026-11-19.mp3`
-- `recordatorio-pagar-renta-2026-11-20.mp3`
-- `resumen-reunion-ntt-2026-11-21.mp3`
+Short, descriptive title — NO kebab-case, NO forced pattern. Spaces and natural punctuation are fine:
 
-Rules:
-- Lowercase, kebab-case, no spaces.
-- Always include an ISO date (`YYYY-MM-DD`).
-- Never use `audio.mp3`, `output.mp3`, `tts.mp3`, `test.mp3`.
+- `Digest noticias 18-11.mp3`
+- `Briefing diario.mp3`
+- `Recordatorio renta.mp3`
+- `Resumen reunion NTT.mp3`
+
+Still include the date in the name or metadata when it matters (recurring content). Never use `audio.mp3`, `output.mp3`, `tts.mp3`, `test.mp3`.
+
+### Embedded metadata (ID3)
+
+edge-tts does not write tags — post-process with ffmpeg (`-c copy`, no re-encode, instant):
+
+```bash
+ffmpeg -y -i in.mp3 -c copy \
+  -metadata title="Digest noticias - 18 nov" \
+  -metadata comment="Resumen diario de feeds: agentes IA, reescritura de curl en Rust." \
+  out.mp3
+```
+
+- `title`: same short title as the filename (without extension).
+- `comment`: 1-2 sentence description of the content — what it is, main topics, source if relevant.
+- Write tags BEFORE sending/saving the final file; overwrite in place or write to the final name directly.
 
 ## Where to save
 
