@@ -1,72 +1,73 @@
 ---
 name: acp-connector
-version: "1.0.0"
-description: Self-reminders and agent-managed cron via the acp-connector bridge MCP tools. Use when running behind acp-connector (Telegram/Discord bridge) and needing to schedule follow-ups, snooze checks, or create recurring jobs.
+version: "1.1.0"
+description: Self-reminders and agent-managed scheduled jobs via the acp-connector bridge MCP tools. Use when running behind acp-connector (Telegram/Discord bridge) and needing to schedule follow-ups, snooze checks, or create recurring jobs.
 metadata:
   author: galiprandi
-  tags: [acp-connector, reminders, cron, scheduling, mcp]
+  tags: [acp-connector, reminders, cron, jobs, scheduling, mcp]
 ---
 
 # ACP Connector
 
 `acp-connector` is the thin bridge that connects you (an ACP agent) to the operator's messaging platforms (Telegram, Discord, HTTP, A2A peers). Every inbound message — user chats, cron fires, reminders — lands in one serialized prompt queue and reaches you as a plain prompt.
 
-When running behind it, an `agent-reminders` MCP server is injected into your session with `reminder_*` and `cron_*` tools. If those tools aren't visible, the bridge or the agent harness doesn't support MCP servers — scheduling isn't available; tell the user.
+When running behind it, an `acp-tools` MCP server is injected into your session with `send_file`, `list_aliases` and the unified `jobs` tool. If those tools aren't visible, the bridge or the agent harness doesn't support MCP servers — scheduling isn't available; tell the user.
 
-## reminder_* tools — one-shot self-reminders
+## jobs tool — all scheduled work
 
-| Tool | Purpose |
+One tool covers one-shot reminders, recurring schedules and manual jobs:
+
+| Action | Purpose |
 |---|---|
-| `reminder_create({ prompt, in?, at? })` | Schedule a one-shot reminder. Exactly one of `in`/`at` |
-| `reminder_list()` | Pending reminders with `id` + `firesAt` (UTC) |
-| `reminder_cancel({ id })` | Cancel |
-| `reminder_update({ id, in?, at?, prompt? })` | Snooze/reschedule/reword |
+| `jobs({action:"create", in? \| at? \| every? \| expr? \| manual, name?, prompt})` | Create a job. `in`: `"20m"`, `"2 hours"`; `at`: absolute ("tomorrow 10am", ISO); `every`: `"1h"`, `"1d"`; `expr`: 5-field cron; `manual:true` requires `name` |
+| `jobs({action:"list"})` | All jobs — yours are `managed:"agent"`, operator's are read-only. Includes `firesAtLocal` and `now` in the configured timezone |
+| `jobs({action:"update", id, ...})` | Change schedule/prompt/name/enabled — agent jobs only |
+| `jobs({action:"delete", id})` | Delete — agent jobs only |
+| `jobs({action:"run", id \| name})` | Deliver the prompt now, schedule untouched |
+| `jobs({action:"toggle", id})` | Pause/resume — agent jobs only |
 
-- `in` = delay from now: `"10m"`, `"30m"`, `"2 hours"`, `"1 day"`.
-- `at` = absolute time: `"tomorrow 10am"`, `"mañana 10:00"`, or ISO (`"2026-03-01T10:00"`). Naive times parse in the operator's configured `timezone` (default: system TZ); `firesAt` is stored in UTC.
-- On fire you receive `[Reminder <id>] <prompt>` as a new prompt — **write `prompt` fully self-contained**: who, what to check, what to do next. You won't see this conversation then.
-- Delivery is guaranteed-ish: if no session is active when it fires, the bridge keeps it and retries on reconnect. Max 50 active; entries 7+ days past `firesAt` are dropped.
+- On fire, the prompt lands in your queue as a new message — **write `prompt` fully self-contained**: who, what to check, what to do next. You won't see this conversation then.
+- `at` needs an explicit offset or the bridge's configured `timezone`; naive datetimes without either are rejected.
+- Changes apply **immediately** — timers re-arm in-process. Never restart the bridge to apply job changes.
+- Once jobs are deleted on delivery; undeliverable ones are retried on reconnect. Max 50 agent jobs.
+- You cannot modify operator jobs (`managed:"operator"`). If one needs changing, tell the user — never work around it by creating a duplicate.
 
 ### Follow-up loop pattern (WhatsApp / email / any outreach)
 
 The canonical use: after sending a message that needs a reply, schedule a check — never fire-and-forget.
 
 1. Send the message (e.g. WhatsApp to a contact).
-2. `reminder_create({ prompt: "Check WhatsApp chat with <name>: did they reply to <topic>? If yes, <next step>. If not, resched with backoff.", in: "15m" })`.
-3. When `[Reminder <id>]` arrives: check for a reply.
-   - Replied → handle it, done. No new reminder.
-   - No reply → `reminder_create` again with growing delay (15m → 30m → 1h → 3h). Include elapsed time in the prompt.
+2. `jobs({action:"create", prompt:"Check WhatsApp chat with <name>: did they reply to <topic>? If yes, <next step>. If not, resched with backoff.", in:"15m"})`.
+3. When the job fires: check for a reply.
+   - Replied → handle it, done. No new job.
+   - No reply → create again with growing delay (15m → 30m → 1h → 3h). Include elapsed time in the prompt.
 4. After ~24h of silence: stop rescheduling and notify the user through the normal channel instead of looping forever.
-
-## cron_* tools — recurring jobs you own
-
-| Tool | Purpose |
-|---|---|
-| `cron_create({ every \| expr, prompt })` | New recurring job. `every`: `"30m"`, `"1h"`, `"1d"`, `"1w"` (even divisors only); `expr`: raw 5-field cron (`"0 9 * * *"`) |
-| `cron_list()` | All jobs; yours are `managed: "agent"`, operator's are `readOnly: true` |
-| `cron_update({ id, every?, expr?, prompt?, enabled? })` | Change schedule/prompt/pause — agent jobs only |
-| `cron_delete({ id })` | Delete — agent jobs only |
-
-- Use for periodic work (daily checks, polling loops); use `reminder_*` for one-offs.
-- Agent jobs persist in `acp-connector.jsonc` with `managed: "agent"` — they survive restarts.
-- You cannot modify operator jobs. If one needs changing, tell the user — never work around it by creating a duplicate.
 
 ## Operator config (acp-connector.jsonc)
 
-Single JSONC file next to where the bridge runs. Keys an agent may need to touch with permission:
+Single JSONC file next to where the bridge runs. Keys an agent may need to touch **with the user's permission**:
 
 ```jsonc
 {
   "agentCmd": "devin acp",
-  "timezone": "America/Argentina/Tucuman",  // timezone for `at` reminder times (default: system TZ)
+  "timezone": "America/Argentina/Buenos_Aires",
   "platforms": { "telegram": { "token": "...", "allowedChatIds": [123] } },
-  "cron": [ { "name": "...", "schedule": "0 9 * * *", "prompt": "...", "enabled": true, "managed": "agent" } ],
-  "routines": [ { "name": "briefing", "prompt": "..." } ],
   "echoInjectedPrompts": true,
   "logLevel": "info"
 }
 ```
 
-- Reminder state lives in `.acp-connector/reminders.json` — do not edit by hand; use the tools.
-- `managed: "agent"` on a cron job means "the agent owns this" — set it only via `cron_create`, not by hand-editing (the runtime won't know).
-- After manual config edits the bridge must be restarted; it reloads cron/reminders on boot and delivers anything past due.
+- Runtime state (jobs, session id, aliases) lives in `.acp-connector/state.json` — **never edit it by hand**: the running bridge rewrites it atomically and your edits are lost. Jobs always go through the `jobs` tool.
+- Config edits to `acp-connector.jsonc` only apply on boot.
+
+## Restart policy — recommend, never execute
+
+**NEVER run `pm2 restart`, `pm2 stop`, `npm run daemon:stop`, `kill`, or anything that restarts the bridge yourself.** You run *inside* it: restarting kills your own session mid-prompt, the inbound message is never acknowledged, Telegram/Discord redelivers it, and the bridge enters a restart loop.
+
+The only case a restart is genuinely needed: **manual edits to `acp-connector.jsonc`** (agentCmd, tokens, timezone, platform settings) — those load at boot and don't apply live. In that case:
+
+1. Tell the user the config changed and **explain why a restart matters**: the bridge reads config only at startup, so without a restart the new values never take effect.
+2. **Recommend** the restart and let the user do it (`pm2 restart donna-bridge` / `npm run daemon` restart) or explicitly authorize it.
+3. Only run it yourself with the user's **explicit consent in the same conversation** — and warn them first that the reply may arrive after the bridge comes back.
+
+Everything else — jobs, aliases, sessions — is live. No restart needed, ever.
