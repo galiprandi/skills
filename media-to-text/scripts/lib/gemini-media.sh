@@ -48,9 +48,12 @@ mkdir -p "$(dirname "$OUT")"
 B64_SAFE_INLINE=20971520   # 20MB limite inline
 
 build_body_inline() {
-  jq -n --arg mime "$MIME" --arg data "$(base64 -w0 "$FILE")" --arg prompt "$PROMPT" \
+  local b64f; b64f=$(mktemp)
+  base64 -w0 "$FILE" > "$b64f"
+  jq -n --arg mime "$MIME" --rawfile data "$b64f" --arg prompt "$PROMPT" \
     '{contents:[{parts:[{inline_data:{mime_type:$mime,data:$data}},{text:$prompt}]}],
-      generationConfig:{temperature:0.2}}'
+      generationConfig:{temperature:0.2}}' > "$b64f.body"
+  cat "$b64f.body"; rm -f "$b64f" "$b64f.body"
 }
 
 call_generate() { # $1=json body -> texto a stdout
