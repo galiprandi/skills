@@ -1,0 +1,95 @@
+#!/bin/bash
+# media2text — convierte imagen/audio/video/pdf a texto usando APIs externas.
+# Uso: media2text <archivo|url> [--out <archivo.txt>] [--provider auto|groq|gemini]
+#      [--prompt "..."] [--lang es]
+#
+# Routing automatico:
+#   pdf con texto        -> pdftotext local (gratis, instantaneo)
+#   pdf escaneado        -> Gemini
+#   image/*              -> Gemini vision (descripcion + OCR)
+#   audio/video >10min   -> Groq Whisper (bulk barato, ~8hs/dia free)
+#   audio/video <=10min  -> Gemini (multimodal nativo, mejor calidad)
+#   otro                 -> Gemini inline
+#
+# URLs de audio/video largas se streamean (no se descarga el archivo).
+# Keys: env GROQ_API_KEY/GEMINI_API_KEY -> ./.env -> ~/.config/devin/secrets/
+# Si falta una key, ver references/keys.md para provisioning.
+set -u
+HERE=$(cd "$(dirname "$0")" && pwd)
+
+INPUT=""; OUT=""; PROVIDER=auto; PROMPT=""; LANG=es
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --out) OUT=$2; shift 2;;
+    --provider) PROVIDER=$2; shift 2;;
+    --prompt) PROMPT=$2; shift 2;;
+    --lang) LANG=$2; shift 2;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0;;
+    *) INPUT=$1; shift;;
+  esac
+done
+[ -z "$INPUT" ] && { echo "uso: media2text <archivo|url> [--out f.txt] [--provider auto|groq|gemini] [--prompt ...]" >&2; exit 1; }
+
+ext_of() { echo "$1" | grep -oiE '\.[a-z0-9]+(\?|$)' | head -1 | tr -d '.?' | tr '[:upper:]' '[:lower:]'; }
+slug_of() { echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/-\+/-/g; s/^-//; s/-$//' | cut -c1-60; }
+
+IS_URL=0; case "$INPUT" in http://*|https://*) IS_URL=1;; esac
+E=$(ext_of "$INPUT")
+
+# Output por defecto
+if [ -z "$OUT" ]; then
+  if [ -f "$INPUT" ]; then base=$(basename "$INPUT"); else base=$(basename "${INPUT%%\?*}"); fi
+  OUT="./${base%.*}.txt"
+fi
+
+MEDIA_EXTS="mp3 wav ogg oga m4a aac flac opus mp4 m4v mov webm avi mkv 3gp"
+IMAGE_EXTS="png jpg jpeg webp gif bmp tiff heic heif svg"
+
+case " $MEDIA_EXTS " in
+  *" $E "*)
+    # duracion via ffprobe (streaming directo sobre URL, sin descargar)
+    DUR=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 \
+      -user_agent "Mozilla/5.0" "$INPUT" 2>/dev/null | cut -d. -f1)
+    DUR=${DUR:-0}
+    if [ "$PROVIDER" = auto ]; then
+      if [ "$DUR" -gt 600 ]; then PROVIDER=groq; else PROVIDER=gemini; fi
+    fi
+    echo "[media2text] media ${DUR}s -> $PROVIDER" >&2
+    case "$PROVIDER" in
+      groq)    exec "$HERE/lib/groq-stt.sh" "$INPUT" "$OUT" "$LANG" ;;
+      gemini)
+        if [ "$IS_URL" = 1 ]; then
+          TMPDL=$(mktemp -d)
+          SRC="$TMPDL/$(basename "${INPUT%%\?*}" | tr -c 'A-Za-z0-9._-' '_')"
+          curl -sL --max-time 1800 -o "$SRC" "$INPUT" || { echo "ERROR descargando" >&2; rm -rf "$TMPDL"; exit 1; }
+        else SRC="$INPUT"; fi
+        "$HERE/lib/gemini-media.sh" "$SRC" "$OUT" "$PROMPT"; rc=$?
+        [ -n "${TMPDL:-}" ] && rm -rf "$TMPDL"; exit $rc ;;
+    esac ;;
+esac
+
+case " $IMAGE_EXTS " in *" $E "*) PROVIDER=${PROVIDER/auto/gemini};; esac
+
+if [ "$E" = "pdf" ] && [ "$PROVIDER" = auto ]; then
+  # pdf: texto local si existe (solo archivos locales)
+  if [ "$IS_URL" = 0 ]; then
+    TXT=$(pdftotext "$INPUT" - 2>/dev/null | tr -d '[:space:]')
+    if [ ${#TXT} -gt 200 ]; then
+      pdftotext -layout "$INPUT" "$OUT" && { echo "[media2text] pdf->texto local: $OUT"; exit 0; }
+    fi
+  fi
+  PROVIDER=gemini
+fi
+[ "$PROVIDER" = auto ] && PROVIDER=gemini
+
+# gemini necesita archivo local
+TMPDL=""
+if [ "$IS_URL" = 1 ]; then
+  TMPDL=$(mktemp -d)
+  SRC="$TMPDL/$(basename "${INPUT%%\?*}" | tr -c 'A-Za-z0-9._-' '_')"
+  curl -sL --max-time 1800 -o "$SRC" "$INPUT" || { echo "ERROR descargando $INPUT" >&2; rm -rf "$TMPDL"; exit 1; }
+else SRC="$INPUT"; fi
+
+"$HERE/lib/gemini-media.sh" "$SRC" "$OUT" "$PROMPT"; rc=$?
+[ -n "$TMPDL" ] && rm -rf "$TMPDL"
+exit $rc
