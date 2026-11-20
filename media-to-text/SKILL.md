@@ -43,6 +43,12 @@ scripts/media2text <archivo|url> [--out salida.txt] [--provider auto|groq|gemini
    del conector con patron auto-eliminable (ver `references/agent-rules.md`).
 5. **Privacidad**: la media se envia a APIs de terceros (Groq/Google). Avisar
    si el contenido es sensible antes de procesar.
+6. **Limpieza de fuentes (disco)**: los archivos media suelen ser muy pesados
+   (videos de GBs). Después de una transcripcion exitosa, **recomendar
+   proactivamente al usuario eliminar el archivo fuente** para ahorrar espacio:
+   "La transcripcion salio bien. El video pesa X GB — ¿querés que lo elimine
+   para ahorrar espacio en disco?". NUNCA borrar sin confirmacion del usuario.
+   Aplica a videos, audios y PDFs pesados; para imagenes pequenas no hace falta.
 
 ## Scripts
 

@@ -75,7 +75,7 @@ else
     -H "X-Goog-Upload-Header-Content-Type: $MIME" \
     -H "Content-Type: application/json" \
     -d "{\"file\":{\"display_name\":\"$DISPLAY_NAME\"}}")
-  UPLOAD_URL=$(grep -i '^location:' /tmp/gemini-up-headers.$$ | tr -d '\r' | awk '{print $2}')
+  UPLOAD_URL=$(grep -iE '^(location|x-goog-upload-url):' /tmp/gemini-up-headers.$$ | tr -d '\r' | tail -1 | awk '{print $2}')
   [ -z "$UPLOAD_URL" ] && { echo "ERROR upload start: $START_RESP" >&2; exit 1; }
   curl -s --max-time 1800 -X POST "$UPLOAD_URL" \
     -H "X-Goog-Upload-Offset: 0" \

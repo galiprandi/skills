@@ -12,6 +12,10 @@
 4. **Avisar antes de enviar media a terceros** si el contenido es sensible
    (documentos personales, credenciales visibles, etc.).
 5. **No commitear keys.** `.env` debe estar gitignored; secrets dir con 600.
+6. **Limpiar fuentes pesadas**: tras transcripcion exitosa de video/audio/PDF
+   pesado, ofrecer borrarlo: "salio bien, el archivo pesa X — ¿lo elimino
+   para ahorrar disco?". Siempre con confirmacion explicita; nunca automatico.
+   Reportar el tamano ahorrado.
 
 ## Convenciones de output
 
