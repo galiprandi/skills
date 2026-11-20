@@ -51,7 +51,7 @@ for f in "$tmp"/chunk_*.mp3; do
   dur=$(chunk_dur "$f"); dur=${dur:-900}
   ash_wait "$dur"
   ok=""
-  for attempt in 1 2 3; do
+  for attempt in 1 2 3 4 5 6 7 8; do
     resp=$(curl -s --max-time 300 "$API" \
       -H "Authorization: Bearer $KEY" \
       -F "file=@$f" -F "model=whisper-large-v3-turbo" \
@@ -59,7 +59,7 @@ for f in "$tmp"/chunk_*.mp3; do
     if echo "$resp" | jq -e '.text' >/dev/null 2>&1; then
       ok=1; echo "$resp" | jq -r '.text' > "$cached"; ash_record "$dur"; break
     fi
-    if echo "$resp" | grep -q "Rate limit"; then echo "[groq] rate-limit API, espero 60s" >&2; sleep 60
+    if echo "$resp" | grep -q "Rate limit"; then echo "[groq] rate-limit API (intento $attempt), espero 150s" >&2; sleep 150
     else echo "[groq] retry $attempt: $(echo "$resp" | head -c 200)" >&2; sleep 15; fi
   done
   [ -z "$ok" ] && { fail=1; echo "[groq] FAIL chunk $base" >&2; break; }
