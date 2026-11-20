@@ -56,10 +56,24 @@ build_body_inline() {
   cat "$b64f.body"; rm -f "$b64f" "$b64f.body"
 }
 
-call_generate() { # $1=json body -> texto a stdout
-  curl -s --max-time 600 "$API/v1beta/models/$MODEL:generateContent?key=$KEY" \
-    -H "Content-Type: application/json" -d @- <<< "$1" | \
-  jq -r '[.candidates[0].content.parts[]?.text] | join("")' 2>/dev/null
+call_generate() { # $1=json body -> texto a stdout (retry en 429/503)
+  local resp attempt
+  for attempt in 1 2 3 4; do
+    resp=$(curl -s --max-time 600 "$API/v1beta/models/$MODEL:generateContent?key=$KEY" \
+      -H "Content-Type: application/json" -d @- <<< "$1")
+    if echo "$resp" | jq -e '.candidates[0].content.parts' >/dev/null 2>&1; then
+      echo "$resp" | jq -r '[.candidates[0].content.parts[]?.text] | join("")'
+      return 0
+    fi
+    if echo "$resp" | grep -qE '"code": (429|503)'; then
+      echo "[gemini] API ocupada (intento $attempt), espero $((attempt*20))s" >&2
+      sleep $((attempt*20))
+    else
+      echo "[gemini] error API: $(echo "$resp" | head -c 300)" >&2
+      return 1
+    fi
+  done
+  return 1
 }
 
 echo "[gemini] $FILE (${SIZE}B, $MIME) -> $OUT" >&2
