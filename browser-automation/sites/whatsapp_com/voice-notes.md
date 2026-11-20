@@ -14,7 +14,7 @@ You need to know the content of a WhatsApp Web voice note (push-to-talk audio me
 - A WhatsApp Web session is authenticated and the conversation containing the voice note is open.
 - The voice note has been played at least once (this triggers WhatsApp to fetch and cache the audio). If it hasn't been played, click the play button first.
 - `ffmpeg`/`ffprobe` installed locally (for duration inspection).
-- Nothing else — transcription runs locally via `audio-transcription` (auto-installed on first use, ~640MB one-time download to `~/.cache/audio-transcription`). See `references/audio-transcription.md`.
+- Nothing else — transcription runs via the `media-to-text` skill (Groq Whisper / Gemini).
 
 ## Why DOM extraction fails
 
@@ -114,13 +114,11 @@ print('saved')
 ffprobe audios/voice_<INDEX>.ogg 2>&1 | grep "Duration"
 ```
 
-### Step 5: Transcribe locally
+### Step 5: Transcribe with media-to-text
 
-```bash
-node .agents/skills/browser-automation/scripts/transcribe-audio.js audios/voice_<INDEX>.ogg
-```
-
-Prints the transcript to stdout and writes `audios/voice_<INDEX>.txt` next to it. Fully local (sherpa-onnx Parakeet) — no API key, audio never leaves the machine. First run downloads the model once; later runs take seconds. See `references/audio-transcription.md` for options (`--stdout-only`, `--threads`, `--out`).
+Use the **media-to-text** skill (`scripts/media2text`) — it routes audio to
+Groq Whisper or Gemini and writes `<file>.txt`. Never transcribe media
+inline; always go through that skill.
 
 ### Step 6: Clean up
 
@@ -147,7 +145,7 @@ If two files have similar durations, transcribe both and pick the one whose cont
 - **Do not** look for `<audio>` elements in the DOM — WhatsApp Web does not use them for voice notes.
 - **Do not** rely on network interception alone — the audio may already be cached from a previous play.
 - **Do not** assume the first Ogg file in the cache is the target — always match by duration.
-- **Do not** use local `openai-whisper` with `--model large` on CPU — it is very slow and heavy. Use `transcribe-audio.js` (Parakeet int8 via sherpa-onnx) instead: ~3x realtime, ~650MB RAM.
+- **Do not** transcribe inline or with local whisper.cpp — use the `media-to-text` skill (`scripts/media2text`), which routes to Groq Whisper / Gemini.
 
 ## Limitations
 
@@ -155,7 +153,7 @@ If two files have similar durations, transcribe both and pick the one whose cont
 - The Cache Storage key `lru-media-array-buffer-cache` may change in future WhatsApp Web versions.
 - The cache is LRU-based; old media may be evicted if many files are loaded.
 - Transcription is serialized machine-wide: concurrent voice notes queue rather than run in parallel (protects CPU).
-- Parakeet v3 covers 25 European languages; heavy code-switching or very noisy audio may transcribe worse than Whisper-large. If quality is insufficient, report it — the engine can be swapped inside `audio-transcription`.
+- Groq `whisper-large-v3-turbo` handles code-switching and noisy audio well; for short clips Gemini multimodal may describe+transcribe in one pass. If quality is insufficient, report it.
 
 ## Notes
 
@@ -163,4 +161,4 @@ If two files have similar durations, transcribe both and pick the one whose cont
 - The Cache API is accessible via `caches.open()` in the page context.
 - Other media types in the cache: JPEG (`ÿØÿà`), WAV/RIFF (`RIFF`).
 
-**Validated:** 2026-08-21 against live `web.whatsapp.com`; transcription path updated 2026-11-14 to local `audio-transcription` (was Groq Whisper).
+**Validated:** 2026-08-21 against live `web.whatsapp.com`; transcription path updated 2026-11-20 to `media-to-text` skill (was local `audio-transcription`).
