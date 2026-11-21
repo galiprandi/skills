@@ -110,6 +110,26 @@ bash .agents/skills/remote-desktop/scripts/pod-vnc stop    # tears down + wipes 
 - If the user reports the link does not load at all, check `status` first: the
   tunnel may be down, or their network may block `trycloudflare.com`.
 
+### Message template
+
+After `pod-vnc start`, send the user exactly this shape — URL and OTP
+copied verbatim from the command output, never from memory. Compute
+`{HH:MM}` as now + `POD_VNC_OTP_TTL` (default 300 s → 5 min ahead):
+
+```
+Tu conexión está lista ✅
+
+🔗 URL: {URL}
+
+🔑 Código: `{OTP}`
+
+Disponible hasta las {HH:MM}hs. No lo compartas.
+```
+
+Keep it to these lines — no extra warnings or paragraphs. If the site is
+known to reject Safari (it always is), mention "abrilo en Chrome" only if
+the user asks or reports a problem.
+
 ## Rules
 
 - Say what the link does BEFORE the user opens it, and remind them it grants
