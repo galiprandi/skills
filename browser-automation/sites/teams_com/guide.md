@@ -247,7 +247,7 @@ Session persists in `.browser-profile/`. Re-login needed every ~30 days.
 
 ## agent-browser notes (verified 2026-10-24)
 
-- Expired-session detection: if `location.hostname` includes `adfs` or `login` (e.g. `adfscl.cencosud.com`, title "Iniciar sesión") the session is dead; ask for manual re-login in `--headed`. Cencosud realm: `cencosud\<network user>`.
+- Expired-session detection: if `location.hostname` includes `adfs`, `login` or `sso` (the Sign-in page instead of Teams), the session is dead; ask for manual re-login in `--headed`. The network-user realm prefix is tenant-specific: ask the user for it, never hardcode it.
 - `navigate` to Teams needs ~10s before any eval (heavy landing page).
 - `exec` runs from the repo cwd -- always use the full path `.agents/skills/browser-automation/scripts/browser.js`, never `cd` into `scripts/`.
 - `exec keyboard type` types into the currently focused element; if it fails with "Element not found", focus via `find`/`click` on a snapshot ref first.

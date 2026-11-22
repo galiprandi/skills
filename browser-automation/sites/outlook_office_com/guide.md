@@ -227,7 +227,7 @@ node .agents/skills/browser-automation/scripts/browser.js exec batch "press g" "
 ### Fallback: click folder in tree
 
 ```bash
-node .agents/skills/browser-automation/scripts/browser.js exec find role treeitem "Mi Local Argentina" click
+node .agents/skills/browser-automation/scripts/browser.js exec find role treeitem "<Folder Name>" click
 ```
 
 If `find` misses (partial text, nested structure), fall back to eval:
@@ -235,7 +235,7 @@ If `find` misses (partial text, nested structure), fall back to eval:
 ```bash
 node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const folder = Array.from(document.querySelectorAll('[role=\"treeitem\"]')).find(f =>
-    f.offsetParent !== null && f.textContent.includes('Mi Local Argentina')
+    f.offsetParent !== null && f.textContent.includes('<Folder Name>')
   );
   if (folder) { folder.click(); return 'clicked'; }
   return 'not_found';
@@ -408,6 +408,6 @@ Outlook Web supports multiple accounts. The URL may include the account index:
 ## agent-browser notes (verified 2026-10-24)
 
 - `save-state`/`load-state` do not exist in the wrapper -- the session persists automatically in `.browser-profile/`.
-- Federated Microsoft session: outlook.office.com → adfscl.cencosud.com. If `location.host` is `adfscl.cencosud.com`, the session expired → ask for manual login in `--headed`.
+- Federated Microsoft session: outlook.office.com redirects to the tenant's hosted-login domain. If `location.host` contains `adfs`, `login` or `sso` (the page is not the mailbox), the session expired → ask for manual login in `--headed`. The realm prefix is tenant-specific: ask the user for it, never hardcode it.
 - `exec keyboard type` needs a focused element -- focus via `find`/`click` on a snapshot ref first; if it fails, use `exec fill "@eN" "text"`.
 - Final URL after login: `outlook.cloud.microsoft`, not outlook.office.com.

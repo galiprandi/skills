@@ -168,21 +168,21 @@ node .agents/skills/browser-automation/scripts/browser.js exec snapshot -i | gre
 node .agents/skills/browser-automation/scripts/browser.js exec press Control+k
 
 # 2. Type the name into the focused combobox
-node .agents/skills/browser-automation/scripts/browser.js exec keyboard type "santituc"
-# (if focus fails: exec snapshot -i to find the combobox "Cambio Rápido" ref, then exec fill "@eN" "santituc")
+node .agents/skills/browser-automation/scripts/browser.js exec keyboard type "<USERNAME>"
+# (if focus fails: exec snapshot -i to find the combobox "Cambio Rápido" ref, then exec fill "@eN" "<USERNAME>")
 
 # 3. Wait for results
 node .agents/skills/browser-automation/scripts/browser.js exec wait 800
 
 # 4. Click the matching option by ref (safer than blind Enter -- see notes below)
-node .agents/skills/browser-automation/scripts/browser.js exec snapshot -i | grep -i "santituc"
+node .agents/skills/browser-automation/scripts/browser.js exec snapshot -i | grep -i "<USERNAME>"
 node .agents/skills/browser-automation/scripts/browser.js exec click "@eN"
 ```
 
 **Alternative:** Click the server/DM in the sidebar via `find`:
 
 ```bash
-node .agents/skills/browser-automation/scripts/browser.js exec find role treeitem "Hermes" click
+node .agents/skills/browser-automation/scripts/browser.js exec find role treeitem "<SERVER_OR_DM>" click
 ```
 
 Fallback eval (Discord servers have complex DOM; aria-label match verified 2026-09-02):
@@ -190,7 +190,7 @@ Fallback eval (Discord servers have complex DOM; aria-label match verified 2026-
 ```bash
 node .agents/skills/browser-automation/scripts/browser.js exec eval "(function(){
   const item = Array.from(document.querySelectorAll('[role=\"treeitem\"]'))
-    .find(i => i.getAttribute('aria-label') && i.getAttribute('aria-label').includes('Hermes'));
+    .find(i => i.getAttribute('aria-label') && i.getAttribute('aria-label').includes('<SERVER_OR_DM>'));
   if (item) { item.click(); return 'clicked'; }
   return 'not found';
 })()"
