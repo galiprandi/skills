@@ -15,7 +15,7 @@ Automate Jira via browser UI for issue creation, form filling, and navigation. J
 
 ## Keyboard shortcuts
 
-**Validated 2026-08-23 against Jira Cloud (cencosud.atlassian.net).** All shortcuts below were tested live via the wrapper's `exec press`. Jira's shortcuts work at the document level - no iframe focus issues like LinkedIn.
+**Validated 2026-08-23 against Jira Cloud.** All shortcuts below were tested live via the wrapper's `exec press`. Jira's shortcuts work at the document level - no iframe focus issues like LinkedIn.
 
 **Sequence vs chord:** hotkeys like `g` then `i` or `s` then `t` are SEQUENCES - send two separate `exec press` calls. `"a+b"` in `press` means simultaneous keys (chord), not a sequence.
 
@@ -276,4 +276,4 @@ node .agents/skills/browser-automation/scripts/browser.js exec eval "(function()
 - Snapshot refs are used as `@eN` (`[ref=eN]` maps to `@eN`).
 - Key sequences (g then i, s then t): two separate `press` calls - `"a+b"` is a chord, not a sequence.
 - `fill` appends: clear the field first if it has content.
-- No Jira session in .browser-profile (Oct 2026): all of cencosud.atlassian.net redirects to id.atlassian.com - a headed manual re-login is required before validating operations.
+- No Jira session in .browser-profile (Oct 2026): authenticated Jira Cloud requests redirect to id.atlassian.com - a headed manual re-login is required before validating operations.

@@ -60,7 +60,7 @@ Each match is approximately one block (~100m) from the reference point.
 The `wa.me/<phone>` URL format uses international format without `+` or spaces. Convert to `send?phone=` URL:
 
 ```
-wa.me/541158519822  →  web.whatsapp.com/send?phone=541158519822
+wa.me/54911XXXXXXXX  →  web.whatsapp.com/send?phone=54911XXXXXXXX
 ```
 
 ### Bulk contact pattern
