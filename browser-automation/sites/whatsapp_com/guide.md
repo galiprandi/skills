@@ -156,7 +156,7 @@ If output is `EMPTY_OR_NOT_FOUND` or the text differs from intended, do NOT send
 
 ### Read messages in a conversation
 
-Open the conversation, then extract messages from the panel. WhatsApp uses virtual scrolling — only ~15 messages are in the DOM at any time. To get the full conversation, scroll up and collect.
+Open the conversation, then extract messages from the panel. WhatsApp uses virtual scrolling — only ~15 messages are in the DOM at any time. `exec read` and `snapshot` only see those rendered messages — for history, use the scroll-up collection below.
 
 **Basic (visible messages only):**
 
