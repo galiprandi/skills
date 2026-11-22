@@ -62,16 +62,6 @@ function abBin() {
   return _abBin;
 }
 
-// Tracker/ad origins blocked on every `open` (migrated from playwright cli.config.json).
-const BLOCKED_ORIGINS = [
-  'doubleclick.net', 'google-analytics.com', 'googletagmanager.com',
-  'facebook.com', 'connect.facebook.net', 'ads.linkedin.com',
-  'px.ads.linkedin.com', 'snap.licdn.com', 'googleads.g.doubleclick.net',
-  'amazon-adsystem.com', 'criteo.com', 'taboola.com', 'outbrain.com',
-  'scorecardresearch.com', 'quantserve.com', 'hotjar.com',
-  'mixpanel.com', 'segment.io', 'amplitude.com',
-];
-
 function debug(msg) { if (DEBUG) console.error(`[browser:debug] ${msg}`); }
 function fail(msg, code = 1) { console.error(`[browser] ${msg}`); process.exit(code); }
 
@@ -307,15 +297,6 @@ function checkForUpdate() {
   } catch {}
 }
 
-// --- blocklist injection ---
-
-function injectBlocklist() {
-  const cmds = BLOCKED_ORIGINS.map((o) => ['network', 'route', `*://*.${o}/*`, '--abort']);
-  cmds.push(['network', 'route', '*://doubleclick.net/*', '--abort']);
-  debug(`injecting ${cmds.length} blocked routes`);
-  return ab(['batch', '--json'], { input: JSON.stringify(cmds) });
-}
-
 // --- CLI ---
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -356,7 +337,6 @@ switch (cmd) {
     if (rest.includes('--headed')) args.push('--headed');
     if (rest.includes('--headless')) args.push('--headed', 'false');
     if (!ab(args)) fail('open failed');
-    injectBlocklist();
     if (url) {
       if (!ab(['navigate', url])) fail('navigate failed');
       printGuide(url);

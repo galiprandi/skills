@@ -24,7 +24,7 @@ Pick the first level that can do the job:
 
 | Command | Args | Description |
 |---|---|---|
-| `open` | `<url>` | Launch browser and navigate (wrapper: adds blocklist + guide) |
+| `open` | `<url>` | Launch browser and navigate (wrapper: injects site guide) |
 | `navigate` | `<url>` | Navigate active tab to URL (wrapper `goto` maps here) |
 | `read` | `[url]` | Agent-readable page text (or fetch a URL without navigating) |
 | `snapshot` | `[-i] [-s <sel>]` | Accessibility tree with `@eN` refs; `-i` = interactive only |
