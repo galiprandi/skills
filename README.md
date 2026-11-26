@@ -1,168 +1,101 @@
 # AI Skills by galiprandi
 
-> 🚀 Supercharge your AI coding assistant with specialized skills
+Reusable skills for AI agents: browser and device automation, personal-assistant data management, media extraction, voice output, and agent workflow discipline.
 
 [![skills.sh](https://skills.sh/b/galiprandi/skills)](https://skills.sh/galiprandi/skills)
 
-This repository contains AI skills that enhance your coding experience with tools like Claude Code, Cursor, Windsurf, and other AI-powered development environments.
+## Installation
 
-## 🎯 What are AI Skills?
+Requires Node.js 22.20 or later.
 
-AI Skills are specialized knowledge modules that teach your AI assistant how to work with specific libraries, frameworks, and tools. Instead of explaining the same concepts repeatedly, you can install a skill once and your AI assistant will have instant expertise.
-
-## 📦 Available Skills
-
-### LiteLLM Sources
-
-**litellm-sources** — Forces verification of every LiteLLM answer against official sources before stating anything (APIs, config.yaml, proxy flags, pricing, model strings, SDK). LiteLLM changes fast; this skill bans answering from memory.
-
-**What it helps with:**
-- Ordered source list: `litellm-docs` MCP → `llms.txt` → page `.md` suffix → `llms-full.txt` → source code → changelog
-- Topic → source mapping (model strings, proxy config, SDK, admin endpoints, routing)
-- Proactively offers to install the read-only `litellm-docs` MCP (snippets for Claude Code, Codex, OpenCode, VS Code)
-- Answer checklist: every claim must cite a URL; version-dependent claims verified against changelog
-
-### Browser Automation ⭐
-
-**browser-automation** — Control a dedicated browser via playwright-cli for web automation. Covers generic browser operations (golden rules, safe wrapper, parallel sessions, profile management) plus site-specific guides for Gmail, LinkedIn, Teams, Jira, Teamtailor, and Humand.co — loaded on demand to save tokens.
-
-**Quality benchmark:** [NVIDIA SkillEvaluator](https://github.com/NVIDIA/SkillEvaluator) score **96.2/100 (Grade A)** — Correctness 100, Discoverability 100, Reliability 100, Efficiency 75. SKILL.md optimized to <5000 tokens with progressive disclosure (detailed content in `references/`).
-
-**What it helps with:**
-- Browser automation with persistent profiles (never commit the profile dir)
-- Safe wrapper that prevents race conditions and zombie sessions
-- Tab and session management for parallel subagent work
-- 6 validated golden rules (eval > refs, in-page polling > sleep, batch operations, etc.)
-- Token-efficient patterns (shallow snapshot, find, batch eval)
-- Auth state persistence across browser restarts
-- Profile management, headed/headless workflow, config via file or env var
-- Site-specific guides: Gmail (Atom feed, native value setter, reply vs compose), LinkedIn (Voyager API, tiptap fix, Easy Apply, connection requests), Teams (chatsvc API, token extraction), Jira (issue creation, custom dropdowns), Teamtailor & Humand.co (job application flows)
-- Self-improving: agents that discover broken selectors or shortcuts can contribute learnings back via draft PRs (with scrubbing, privacy gates, and human confirmation)
-
-**Perfect for:**
-- Automating web apps that require login
-- Scraping data from authenticated sites
-- Testing web flows
-- Any task needing a real browser session
-- Job search automation, recruiter outreach, inbox management
-
-**Includes:**
-- `scripts/browser.js` — safe wrapper (copy to your repo's `scripts/` dir)
-- `references/parallel-agents.md` — subagent pattern with sessions and ref-count
-- `references/profile-management.md` — profile dir, auth state, headed/headless
-- `references/playwright-cli.md` — full command reference
-- `references/ats-patterns.md` — ATS-specific patterns (Ashby, scheduling links)
-- `sites/gmail_com/guide.md` — Gmail guide (Atom feed, compose, reply, search, shortcuts, SMTP)
-- `sites/linkedin_com/guide.md` — LinkedIn guide (Voyager API, messaging, Easy Apply, connections, tiptap fix)
-- `sites/linkedin_com/voyager-api.md` — Voyager endpoint documentation
-- `sites/teams_com/guide.md` — Teams guide (chatsvc API, token extraction, chatId formats)
-- `sites/jira_com/guide.md` — Jira guide (issue creation, custom dropdowns, transitions)
-- `sites/teamtailor_com/guide.md` — Teamtailor guide (Apply with LinkedIn, API POST, email verification)
-- `sites/humand_co/guide.md` — Humand.co guide (guest session, S3 CV upload, API apply)
-- `sites/CONTRIBUTING.md` — contribution guidelines, naming conventions, security checklist
-
-**Security:**
-- SkillSpector CI scans every PR to `browser-automation/` for prompt injection, data exfiltration, and supply-chain attacks
-- `sites/` is markdown-only (no executable scripts) — prevents RCE via contributed code
-- Learnings are documentation only, never auto-applied by the agent
-- Privacy gate: agents never offer to contribute learnings from internal/private sites
-- PR scope enforcement: contributions to `sites/` cannot touch core files (`SKILL.md`, `scripts/`, `references/`)
-
-### React Tools
-
-**@galiprandi/react-tools** - A lightweight, dependency-free utility library for React that provides reusable components and hooks to simplify development and improve accessibility.
-
-**What it helps with:**
-- Async data handling with automatic cancellation
-- Form management with built-in validation
-- Browser-native AI features (Chrome AI API with multimodal support)
-- Accessible dialogs and modals
-- Performance optimization (lazy loading, viewport tracking)
-- Common React patterns (debounce, timers, list management)
-
-**Perfect for:**
-- React web applications
-- Form-heavy interfaces
-- AI-powered features
-- Performance-critical UIs
-
-### Context Organizer
-
-**context-organizer** - A skill for managing and optimizing the context within AI coding environments, including optimizing the storage and retrieval of technical information, rewriting ambiguous test descriptions, and compiling clean and structured documentation.
-
-**What it helps with:**
-- Optimizing the storage and retrieval of technical information
-- Rewriting ambiguous test descriptions
-- Compiling clean and structured documentation
-
-**Perfect for:**
-- AI coding environments
-- Technical documentation
-- Test description optimization
-
-## 🛠️ Installation
+Install one skill into the current project:
 
 ```bash
-npx skills add https://github.com/galiprandi/skills
+npx skills add galiprandi/skills --skill <skill-name>
 ```
 
-To update all installed skills to the latest version (recommended before starting any browser automation task — site selectors break over time):
+Install one skill globally:
+
+```bash
+npx skills add galiprandi/skills --skill <skill-name> -g
+```
+
+Install one skill for a specific agent:
+
+```bash
+npx skills add galiprandi/skills --skill <skill-name> -a <agent-name>
+```
+
+Install one skill from its direct repository path:
+
+```bash
+npx skills add https://github.com/galiprandi/skills/tree/main/<skill-name>
+```
+
+List available skills without installing:
+
+```bash
+npx skills add galiprandi/skills --list
+```
+
+Choose skills interactively:
+
+```bash
+npx skills add galiprandi/skills
+```
+
+Update installed skills:
 
 ```bash
 npx skills update
 ```
 
-## 💡 How to Use
+Avoid installing every skill blindly: some are environment-specific and require private infrastructure, credentials, devices, or MCP servers.
 
-Once installed, your AI assistant will automatically have access to the skill's knowledge. Simply ask questions like:
+## Skills inventory
 
-- "Read my Gmail inbox and summarize unread messages"
-- "Send a LinkedIn message to María"
-- "Apply to the job posting at company.teamtailor.com"
-- "How do I use AsyncBlock for API data fetching?"
-- "Show me how to create a form with validation"
+| Skill | Use when | Requires | Audience |
+|---|---|---|---|
+| `acp-connector` | Scheduling follow-ups, snoozed checks, or recurring jobs through the acp-connector bridge | acp-connector MCP environment | Environment-specific |
+| `agent-desk` | Managing tasks, events, sessions, and relationships in agent-desk | agent-desk deployment, `browser-automation` | Environment-specific |
+| `android-automation` | Controlling Android apps or devices through adb | adb, Android device or emulator | General |
+| `assistant` | Managing people/contact data with Google Contacts semantics, CSV fallback, deduplication, and write-safety rules | Google account or local CSV; `browser-automation` for UI work | Personal assistants/bots |
+| `autogen` | Extracting a successful workflow into a reusable skill | Existing agent workflow worth preserving | Meta/agent maintenance |
+| `browser-automation` | Automating authenticated web apps in a real browser | Node.js, Chrome, `agent-browser` | General |
+| `context-organizer` | Maintaining repository context files and behavior documentation | Repository with docs/tests | Opinionated/general |
+| `litellm-sources` | Answering LiteLLM questions only from current official sources | Network access to LiteLLM sources | Specialized |
+| `media-to-text` | Converting images, audio, video, and PDFs into text | Groq/Gemini API access; local PDF tools when available | General, key-dependent |
+| `react-tools` | Using `@galiprandi/react-tools` components and hooks correctly | React project using that library | General |
+| `remote-desktop` | Letting a human temporarily control the machine for login, captcha, or visual inspection | Remote desktop/tunnel setup | Environment-specific |
+| `tts` | Converting text or digests into speech audio | `edge-tts` | General |
 
-Your AI assistant will provide accurate, context-aware answers based on the skill's documentation.
+## How this repository is organized
 
-## ✨ Benefits
+- Each skill lives in a root-level directory named after the skill.
+- `<skill>/SKILL.md` is the agent-facing entrypoint.
+- `references/` contains detailed optional documentation.
+- `templates/` contains schemas or copyable artifacts.
+- `scripts/` contains executable support code when needed.
+- `sites/` contains site-specific browser automation guides.
 
-- **Save Time**: No need to explain library specifics repeatedly
-- **Better Code**: Get consistent, best-practice implementations
-- **Stay Updated**: Skills are maintained with the latest library features
-- **Expert Guidance**: Access specialized knowledge instantly
-- **Reduced Hallucinations**: AI assistant has accurate documentation to reference
+The README is only the discovery and installation index. Operational behavior belongs in each `SKILL.md`.
 
-## 🔒 Security
+## Security and privacy
 
-All skills in this repository undergo security assessments:
+- Do not commit secrets, credentials, browser profiles, downloads, or real personal data.
+- Templates must contain schemas or clearly fake examples only.
+- Browser automation may operate authenticated sessions; verify account identity before acting.
+- Environment-specific skills can expose private infrastructure or workflows. Install them only in the environment they were designed for.
+- Pull requests are scanned by SkillSpector for prompt-injection, data-exfiltration, and supply-chain risks.
 
-- ✅ SkillSpector CI scans for prompt injection, data exfiltration, and supply-chain attacks
-- ✅ No executable scripts in `sites/` — markdown documentation only
-- ✅ Learnings are never auto-applied by the agent (documentation, not instructions)
-- ✅ Privacy gate prevents contributing learnings from internal/private sites
-- ✅ PR scope enforcement — contributions cannot touch core skill files
-- ✅ Transparent source code
+## Contributing
 
-Review security details at [skills.sh/galiprandi/skills](https://skills.sh/galiprandi/skills)
+- Keep one skill per directory.
+- Keep `SKILL.md` concise and information-dense; move detail to `references/`.
+- Update this inventory whenever a skill is added, renamed, removed, or changes purpose.
+- Do not duplicate browser/UI mechanics outside `browser-automation`; reference it instead.
+- Run relevant validation or smoke checks before submitting changes.
 
-## 🤝 Contributing
+## License
 
-Suggestions and improvements are welcome! Feel free to:
-
-- Report issues with existing skills
-- Request new skills for libraries you use
-- Share feedback on skill effectiveness
-
-## 📄 License
-
-MIT License - Feel free to use these skills in your projects.
-
-## 🔗 Links
-
-- [React Tools Library](https://github.com/galiprandi/react-tools)
-- [Skills.sh Documentation](https://skills.sh)
-- [Report Issues](https://github.com/galiprandi/skills/issues)
-
----
-
-**Built with ❤️ for developers who want smarter AI assistants**
+MIT License. See [LICENSE](LICENSE).
