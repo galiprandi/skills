@@ -59,7 +59,7 @@ Avoid installing every skill blindly: some are environment-specific and require 
 | `acp-connector` | Scheduling follow-ups, snoozed checks, or recurring jobs through the acp-connector bridge | acp-connector MCP environment | Environment-specific |
 | `agent-desk` | Managing tasks, events, sessions, and relationships in agent-desk | agent-desk deployment, `browser-automation` | Environment-specific |
 | `android-automation` | Controlling Android apps or devices through adb | adb, Android device or emulator | General |
-| `assistant` | Managing people/contact data with Google Contacts semantics, CSV fallback, deduplication, and write-safety rules | Google account or local CSV; `browser-automation` for UI work | Personal assistants/bots |
+| `assistant` | Managing people/contact data with exhaustive Google Contacts field coverage, relationship direction, CSV fallback templates, deduplication, and write-safety rules | Google account or local CSV; `browser-automation` for UI work | Personal assistants/bots |
 | `autogen` | Extracting a successful workflow into a reusable skill | Existing agent workflow worth preserving | Meta/agent maintenance |
 | `browser-automation` | Automating authenticated web apps in a real browser | Node.js, Chrome, `agent-browser` | General |
 | `context-organizer` | Maintaining repository context files and behavior documentation | Repository with docs/tests | Opinionated/general |
