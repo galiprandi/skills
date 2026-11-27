@@ -67,6 +67,7 @@ Avoid installing every skill blindly: some are environment-specific and require 
 | `media-to-text` | Converting images, audio, video, and PDFs into text | Groq/Gemini API access; local PDF tools when available | General, key-dependent |
 | `react-tools` | Using `@galiprandi/react-tools` components and hooks correctly | React project using that library | General |
 | `remote-desktop` | Letting a human temporarily control the machine for login, captcha, or visual inspection | Remote desktop/tunnel setup | Environment-specific |
+| `self-review` | Detecting drift in the agent's own memory: contradictions, stale assumptions, unpersisted rejections, duplicate or broken skills | Agent home repo with memory layers | Meta/agent maintenance |
 | `tts` | Converting text or digests into speech audio | `edge-tts` | General |
 
 ## How this repository is organized
